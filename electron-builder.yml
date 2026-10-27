@@ -1,0 +1,90 @@
+# Installers for Windows, macOS and Linux. `npm run dist` builds for the current OS.
+#
+# Signing is driven by the environment and skipped when nothing is set:
+#   Windows, certificate file: CSC_LINK / WIN_CSC_LINK (+ CSC_KEY_PASSWORD / WIN_CSC_KEY_PASSWORD)
+#   Windows, Azure Trusted Signing: when AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET are
+#     set, the release workflow adds
+#       -c.win.azureSignOptions.endpoint=$AZURE_SIGN_ENDPOINT
+#       -c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGN_ACCOUNT
+#       -c.win.azureSignOptions.certificateProfileName=$AZURE_SIGN_PROFILE
+#     (a YAML file cannot make azureSignOptions conditional, and setting it without credentials
+#     would fail every unsigned local build)
+#   macOS: CSC_LINK + CSC_KEY_PASSWORD for signing; APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and
+#     APPLE_TEAM_ID for notarisation
+# `signExts` only matters when a certificate is present; unsigned builds sign nothing.
+
+appId: io.github.agentrunmonitor
+productName: Agent Run Monitor
+copyright: Copyright © 2026 Agent Run Monitor contributors
+
+directories:
+  output: release/${version}
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+
+# sql.js reads its .wasm with fs.readFile, which Electron serves from inside app.asar, so no
+# asarUnpack entry is needed. If a future adapter passes the wasm path to a native API, add:
+# asarUnpack:
+#   - node_modules/sql.js/dist/*.wasm
+asar: true
+
+forceCodeSigning: false
+
+win:
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  signExts: [".dll"]
+  artifactName: agent-run-monitor-${version}-win-${arch}.${ext}
+
+nsis:
+  # Per-user install, never asks for administrator rights. oneClick installs into the user's
+  # profile without an install-mode page (an assisted installer with perMachine false would
+  # offer an "all users" choice that needs elevation).
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Agent Run Monitor
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false
+  artifactName: agent-run-monitor-${version}-setup-${arch}.${ext}
+
+mac:
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+    - target: zip
+      arch: [x64, arm64]
+  artifactName: agent-run-monitor-${version}-mac-${arch}.${ext}
+
+dmg:
+  artifactName: agent-run-monitor-${version}-${arch}.${ext}
+
+linux:
+  icon: build/icon.png
+  category: Development
+  synopsis: Watch your coding-agent runs, locally and read-only
+  maintainer: Agent Run Monitor contributors <agent-run-monitor@users.noreply.github.com>
+  target:
+    - AppImage
+    - deb
+  artifactName: agent-run-monitor-${version}-linux-${arch}.${ext}
+
+# Owner and repo come from package.json "repository" (currently OWNER/agent-run-monitor);
+# `npm run set-repo -- <owner>/<repo>` rewrites that, so nothing here needs editing.
+publish:
+  provider: github
+  releaseType: draft

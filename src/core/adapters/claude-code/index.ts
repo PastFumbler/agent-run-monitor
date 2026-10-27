@@ -25,6 +25,10 @@ export const adapter: SourceAdapter = {
     'Reads ~/.claude/projects (or $CLAUDE_CONFIG_DIR): session transcripts, sub-agents and workflow runs, plus sessions/<pid>.json for tool-approval waits. Verified on Windows; macOS/Linux paths from the bundled code.',
   defaultRoots,
   discover,
+  // Only transcripts and the live-session registry matter; file-history, shell-snapshots and
+  // caches change constantly and never affect a run.
+  isRelevantChange: (p: string) => /[\\/](projects|sessions)([\\/]|$)/.test(p),
+  isLiveSignal: (p: string) => /[\\/]sessions[\\/][^\\/]+\.json$/i.test(p),
   async parse(ref: SessionRef, prev: ParseState | undefined, _ctx: ParseContext): Promise<ParseState> {
     const kind = kindOf(ref);
     const parent = parentOf(ref, kind);
