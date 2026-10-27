@@ -1,0 +1,22 @@
+{
+ "version": 2,
+ "sessionId": "6a7b8c9d-0e1f-4a2b-8c3d-4e5f6a7b8c9d",
+ "creationDate": 1792400000000,
+ "computedTitle": "Explain a list comprehension",
+ "requesterUsername": "alex",
+ "responderUsername": "GitHub Copilot",
+ "initialLocation": "editing-session",
+ "workingDirectory": "file:///home/alex/scratch",
+ "requests": [
+  {
+   "requestId": "request_legacy-0001",
+   "message": { "text": "Explain what [x * 2 for x in nums if x] does", "parts": [] },
+   "variableData": { "variables": [] },
+   "response": ["It builds a new list ", "with each truthy item doubled."],
+   "timestamp": 1792400005000,
+   "modelId": "copilot/gpt-4.1",
+   "result": { "timings": { "firstProgress": 600, "totalElapsed": 1400 } },
+   "followups": []
+  }
+ ]
+}

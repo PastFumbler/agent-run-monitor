@@ -1,0 +1,24 @@
+TO LLM 2026-03-14T09:12:32
+-------
+SYSTEM Act as an expert software developer.
+SYSTEM Always use best practices when coding.
+-------
+USER I have *added these files to the chat* so you can go ahead and edit them.
+USER 
+USER todo/cli.py
+-------
+ASSISTANT Ok, any changes I propose will be to those files.
+-------
+USER add a --due flag to the add command
+LLM RESPONSE 2026-03-14T09:12:41
+ASSISTANT I'll add an optional `--due` argument and store it on the task.
+ASSISTANT 
+ASSISTANT todo/cli.py
+ASSISTANT ```python
+ASSISTANT <<<<<<< SEARCH
+ASSISTANT     add_p = sub.add_parser("add")
+ASSISTANT =======
+ASSISTANT     add_p = sub.add_parser("add")
+ASSISTANT     add_p.add_argument("--due", help="due date, YYYY-MM-DD")
+ASSISTANT >>>>>>> REPLACE
+ASSISTANT ```

@@ -1,0 +1,7 @@
+{"event": "launched", "properties": {}, "user_id": "4b9e2c1a-7d3f-4e8a-9c21-5f6a0b7d8e90", "time": 1773479525}
+{"event": "repo", "properties": {"num_files": 12}, "user_id": "4b9e2c1a-7d3f-4e8a-9c21-5f6a0b7d8e90", "time": 1773479526}
+{"event": "auto_commits", "properties": {"enabled": true}, "user_id": "4b9e2c1a-7d3f-4e8a-9c21-5f6a0b7d8e90", "time": 1773479526}
+{"event": "cli session", "properties": {"main_model": "anthropic/claude-sonnet-4-5", "weak_model": "anthropic/claude-haiku-4-5", "editor_model": "anthropic/claude-sonnet-4-5", "edit_format": "diff"}, "user_id": "4b9e2c1a-7d3f-4e8a-9c21-5f6a0b7d8e90", "time": 1773479527}
+{"event": "message_send", "properties": {"main_model": "anthropic/claude-sonnet-4-5", "weak_model": "anthropic/claude-haiku-4-5", "editor_model": "anthropic/claude-sonnet-4-5", "edit_format": "diff", "prompt_tokens": 3100, "completion_tokens": 412, "total_tokens": 3512, "cost": 0.0155, "total_cost": 0.0155}, "user_id": "4b9e2c1a-7d3f-4e8a-9c21-5f6a0b7d8e90", "time": 1773479561}
+{"event": "command_run", "properties": {}, "user_id": "4b9e2c1a-7d3f-4e8a-9c21-5f6a0b7d8e90", "time": 1773479800}
+{"event": "exit", "properties": {"reason": "/exit"}, "user_id": "4b9e2c1a-7d3f-4e8a-9c21-5f6a0b7d8e90", "time": 1773479825}

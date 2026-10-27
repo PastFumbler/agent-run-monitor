@@ -1,0 +1,23 @@
+[
+  {
+    "sessionId": "5b2c9e1a-7d4f-4c1e-9a3b-2f6e8d0c1a57",
+    "messageId": 0,
+    "timestamp": "2026-10-20T14:03:12.704Z",
+    "type": "user",
+    "message": "Add a `done` command to todo-cli that marks a task as complete by its id."
+  },
+  {
+    "sessionId": "5b2c9e1a-7d4f-4c1e-9a3b-2f6e8d0c1a57",
+    "messageId": 1,
+    "timestamp": "2026-10-20T14:04:52.511Z",
+    "type": "user",
+    "message": "Also colour the output of list."
+  },
+  {
+    "sessionId": "5b2c9e1a-7d4f-4c1e-9a3b-2f6e8d0c1a57",
+    "messageId": 2,
+    "timestamp": "2026-10-20T14:05:04.511Z",
+    "type": "user",
+    "message": "Yes, implement Store.done and rerun the tests."
+  }
+]

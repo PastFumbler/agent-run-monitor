@@ -1,0 +1,10 @@
+{
+  "sessionId": "c0ffee01-1111-4222-8333-444455556666",
+  "projectHash": "c0ffee00000000000000000000000000000000000000000000000000000000ab",
+  "startTime": "2025-08-30T10:00:01.000Z",
+  "lastUpdated": "2025-08-30T10:00:09.000Z",
+  "messages": [
+    { "id": "c0ffee01-0001", "timestamp": "2025-08-30T10:00:02.000Z", "type": "user", "content": "Explain the build script." },
+    { "id": "c0ffee01-0002", "timestamp": "2025-08-30T10:00:09.000Z", "type": "qwen", "content": "It runs the linter, then the tests.", "tokens": { "input": 900, "output": 15, "cached": 0, "thoughts": 0, "tool": 0, "total": 915 }, "model": "qwen3-coder-plus" }
+  ]
+}

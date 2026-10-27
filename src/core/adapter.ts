@@ -104,6 +104,17 @@ export interface SourceAdapter {
    * into an 'unreadable' run.
    */
   parse(ref: SessionRef, prev: ParseState | undefined, ctx: ParseContext): Promise<ParseState>;
+  /**
+   * Optional: false for watched paths that can never affect a run (caches, backups), so they do
+   * not trigger a re-discovery. Default: every change is relevant.
+   */
+  isRelevantChange?(path: string): boolean;
+  /**
+   * Optional: true for side files that change a live run's state without touching its session
+   * file (e.g. a "waiting for approval" registry). The store then re-parses this adapter's active
+   * runs (running, waiting, idle, stuck).
+   */
+  isLiveSignal?(path: string): boolean;
 }
 
 export interface DiscoverContext {
@@ -111,6 +122,8 @@ export interface DiscoverContext {
   /** Only sessions modified at or after this time (epoch ms; 0 = all). */
   since: number;
   projectRoots: string[];
+  /** A scratch folder for adapters that must copy a file to list its sessions (SQLite). */
+  tempDir?: string;
 }
 
 export interface ParseContext {

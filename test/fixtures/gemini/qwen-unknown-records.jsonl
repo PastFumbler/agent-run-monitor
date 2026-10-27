@@ -1,0 +1,2 @@
+{"uuid":"b2000000-0000-4000-8000-000000000001","parentUuid":null,"type":"hologram","payload":{}}
+{"uuid":"b2000000-0000-4000-8000-000000000002","parentUuid":"b2000000-0000-4000-8000-000000000001","type":"system","subtype":"managed_session_event_v1"}

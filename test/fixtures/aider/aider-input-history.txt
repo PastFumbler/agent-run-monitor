@@ -1,0 +1,28 @@
+
+# 2026-03-14 09:12:31.418201
++add a --due flag to the add command
+
+# 2026-03-14 09:14:02.007315
++also add a test
++for the due flag
+
+# 2026-03-14 09:16:40.553120
++/run pytest -q
+
+# 2026-03-14 09:17:05.120044
++/exit
+
+# 2026-03-15 14:41:10.900211
++/add todo/storage.py
+
+# 2026-03-15 14:41:44.371950
++why does `todo list` crash when the data file is empty?
+
+# 2026-03-15 14:44:12.665402
++rename storage.py to store.py and update imports
+
+# 2026-03-15 14:44:30.004418
++explain the storage format
+
+# 2026-03-16 08:03:40.218876
++create a short README for the project

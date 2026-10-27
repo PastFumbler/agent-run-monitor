@@ -1,0 +1,100 @@
+{
+  "_comment": "Logical dump of store.db. Table meta(key TEXT PRIMARY KEY, value TEXT); table blobs(id TEXT PRIMARY KEY, data BLOB). meta.value is hex(utf8(JSON)). Tree blobs are protobuf: repeated (0x0a 0x20 <32-byte sha256>) message refs and (0x12 0x20 <32 bytes>) subtree refs; shown here as hex. Leaf blobs are UTF-8 JSON.",
+  "meta": [
+    {
+      "key": "0",
+      "value": "7b226167656e744964223a2232623363346435652d366637302d343831322d396133622d346335643665376638303931222c226c6174657374526f6f74426c6f624964223a2261336631633965323762356434653666386130623163326433653466356136623763386439653066316132623363346435653666376138623963306431653266222c226e616d65223a2241646420646f6e6520666c6167222c226d6f6465223a226175746f2d72756e222c22637265617465644174223a313739303030303539303030302c226c617374557365644d6f64656c223a226770742d352e342d68696768222c22697352756e45766572797468696e67223a66616c73657d"
+    }
+  ],
+  "meta_decoded": {
+    "agentId": "2b3c4d5e-6f70-4812-9a3b-4c5d6e7f8091",
+    "latestRootBlobId": "a3f1c9e27b5d4e6f8a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
+    "name": "Add done flag",
+    "mode": "auto-run",
+    "createdAt": 1790000590000,
+    "lastUsedModel": "gpt-5.4-high",
+    "isRunEverything": false
+  },
+  "blobs": [
+    {
+      "id": "a3f1c9e27b5d4e6f8a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
+      "data_hex": "0a2011111111111111111111111111111111111111111111111111111111111111110a2022222222222222222222222222222222222222222222222222222222222222220a2033333333333333333333333333333333333333333333333333333333333333330a2044444444444444444444444444444444444444444444444444444444444444440a205555555555555555555555555555555555555555555555555555555555555555"
+    },
+    {
+      "id": "1111111111111111111111111111111111111111111111111111111111111111",
+      "data_utf8_json": {
+        "role": "system",
+        "content": "You are an AI coding assistant. (synthetic)"
+      }
+    },
+    {
+      "id": "2222222222222222222222222222222222222222222222222222222222222222",
+      "data_utf8_json": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "<user_info>\nWorkspace Path: /home/alex/todo-cli\n</user_info>\n<user_query>\nAdd a --done flag to todo list.\n</user_query>"
+          }
+        ]
+      }
+    },
+    {
+      "id": "3333333333333333333333333333333333333333333333333333333333333333",
+      "data_utf8_json": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Reading the CLI module."
+          },
+          {
+            "type": "tool-call",
+            "toolCallId": "call_SYNTH0001",
+            "toolName": "Read",
+            "args": {
+              "path": "/home/alex/todo-cli/todo/cli.py"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "4444444444444444444444444444444444444444444444444444444444444444",
+      "data_utf8_json": {
+        "role": "tool",
+        "content": [
+          {
+            "type": "tool-result",
+            "toolCallId": "call_SYNTH0001",
+            "toolName": "Read",
+            "result": "import argparse\n..."
+          }
+        ]
+      }
+    },
+    {
+      "id": "5555555555555555555555555555555555555555555555555555555555555555",
+      "data_utf8_json": {
+        "role": "assistant",
+        "content": [
+          {
+            "type": "reasoning",
+            "text": "Need to add the flag to the list parser.",
+            "signature": "sig-synthetic-0002"
+          },
+          {
+            "type": "tool-call",
+            "toolCallId": "call_SYNTH0002",
+            "toolName": "StrReplace",
+            "args": {
+              "path": "/home/alex/todo-cli/todo/cli.py",
+              "old_string": "add_parser('list')",
+              "new_string": "add_parser('list')  # --done"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

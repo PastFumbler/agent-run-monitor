@@ -1,0 +1,10 @@
+id: 9d4e1f7a-2b3c-4d5e-8f60-71829a3b4c5d
+cwd: C:\Users\alex\projects\todo-cli
+git_root: C:\Users\alex\projects\todo-cli
+repository: alex/todo-cli
+host_type: github
+branch: main
+summary: Add --done flag to todo-cli complete command
+summary_count: 0
+created_at: 2026-10-16T09:00:00.000Z
+updated_at: 2026-10-16T09:02:31.512Z

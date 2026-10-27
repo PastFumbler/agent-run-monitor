@@ -1,0 +1,2 @@
+{"session_id":"019a01f2-6c3d-7e41-b5a2-3c4d5e6f7a81","ts":1792591392,"text":"Add a --done flag to `todo list` so it only shows finished items."}
+{"session_id":"019a01f2-6c3d-7e41-b5a2-3c4d5e6f7a81","ts":1792591540,"text":"Now add a `todo clear` command that removes finished items."}

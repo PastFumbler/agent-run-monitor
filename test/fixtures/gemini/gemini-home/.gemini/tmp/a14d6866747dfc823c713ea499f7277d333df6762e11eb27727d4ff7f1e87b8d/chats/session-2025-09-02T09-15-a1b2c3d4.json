@@ -1,0 +1,78 @@
+{
+  "sessionId": "a1b2c3d4-0e0f-4a1b-8c2d-3e4f5a6b7c8d",
+  "projectHash": "a14d6866747dfc823c713ea499f7277d333df6762e11eb27727d4ff7f1e87b8d",
+  "startTime": "2025-09-02T09:15:03.118Z",
+  "lastUpdated": "2025-09-02T09:16:44.902Z",
+  "messages": [
+    {
+      "id": "11111111-aaaa-4bbb-8ccc-000000000001",
+      "timestamp": "2025-09-02T09:15:10.004Z",
+      "type": "user",
+      "content": "List the files in this project."
+    },
+    {
+      "id": "11111111-aaaa-4bbb-8ccc-000000000002",
+      "timestamp": "2025-09-02T09:15:14.552Z",
+      "type": "gemini",
+      "content": "",
+      "thoughts": [
+        {
+          "subject": "Listing files",
+          "description": "A directory listing answers this directly.",
+          "timestamp": "2025-09-02T09:15:12.310Z"
+        }
+      ],
+      "tokens": {
+        "input": 5120,
+        "output": 12,
+        "cached": 0,
+        "thoughts": 40,
+        "tool": 0,
+        "total": 5172
+      },
+      "model": "gemini-2.5-pro",
+      "toolCalls": [
+        {
+          "id": "list_directory-1756804514552-8d1f2a",
+          "name": "list_directory",
+          "args": {
+            "path": "/home/alex/src/todo-cli"
+          },
+          "result": [
+            {
+              "functionResponse": {
+                "id": "list_directory-1756804514552-8d1f2a",
+                "name": "list_directory",
+                "response": {
+                  "output": "Directory listing for /home/alex/src/todo-cli:\n[DIR] todo\n[DIR] tests\nREADME.md\npyproject.toml"
+                }
+              }
+            }
+          ],
+          "status": "success",
+          "timestamp": "2025-09-02T09:15:14.902Z",
+          "resultDisplay": "Listed 4 item(s).",
+          "displayName": "ReadFolder",
+          "description": "Lists the names of files and subdirectories directly within a specified directory path.",
+          "renderOutputAsMarkdown": true
+        }
+      ]
+    },
+    {
+      "id": "11111111-aaaa-4bbb-8ccc-000000000003",
+      "timestamp": "2025-09-02T09:16:44.902Z",
+      "type": "gemini",
+      "content": "The project has a `todo` package, a `tests` folder, a README and a pyproject.toml.",
+      "thoughts": [],
+      "tokens": {
+        "input": 5230,
+        "output": 24,
+        "cached": 0,
+        "thoughts": 0,
+        "tool": 0,
+        "total": 5254
+      },
+      "model": "gemini-2.5-pro"
+    }
+  ]
+}

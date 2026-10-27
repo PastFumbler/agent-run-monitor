@@ -1,0 +1,55 @@
+{
+  "composer.composerData": {
+    "allComposers": [
+      {
+        "type": "head",
+        "composerId": "3f6c1a2e-8b4d-4e7a-9c15-2d7e8f0a1b34",
+        "name": "Add --done flag to list command",
+        "createdAt": 1789999380000,
+        "lastUpdatedAt": 1789999408000,
+        "unifiedMode": "agent",
+        "forceMode": "edit"
+      },
+      {
+        "type": "head",
+        "composerId": "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+        "name": "store.load return type",
+        "createdAt": 1740992400000,
+        "lastUpdatedAt": 1740992400000,
+        "unifiedMode": "chat",
+        "forceMode": "chat"
+      }
+    ],
+    "selectedComposerIds": [
+      "3f6c1a2e-8b4d-4e7a-9c15-2d7e8f0a1b34"
+    ],
+    "lastFocusedComposerIds": [
+      "3f6c1a2e-8b4d-4e7a-9c15-2d7e8f0a1b34"
+    ]
+  },
+  "aiService.prompts": [
+    {
+      "text": "Add a --done flag to the `todo list` command so finished items can be hidden.",
+      "commandType": 4
+    }
+  ],
+  "workbench.panel.aichat.view.aichat.chatdata": {
+    "tabs": [
+      {
+        "tabId": "f1e2d3c4-b5a6-4978-8a9b-0c1d2e3f4a5b",
+        "chatTitle": "store.load return type",
+        "bubbles": [
+          {
+            "type": "user",
+            "text": "What does store.load() return?"
+          },
+          {
+            "type": "ai",
+            "text": "A list of Item dataclasses."
+          }
+        ],
+        "lastSendTime": 1736510400000
+      }
+    ]
+  }
+}
