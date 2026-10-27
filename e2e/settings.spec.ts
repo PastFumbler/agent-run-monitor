@@ -24,7 +24,7 @@ test.afterEach(() => {
 
 async function ready(page: Page) {
   await expect(page.getByTestId('run-list').getByRole('option').first()).toBeVisible();
-  await expect(page.getByTestId('run-title')).toBeVisible();
+  await expect(page.getByTestId('dashboard')).toBeVisible();
 }
 
 async function openSettings(page: Page) {
@@ -46,7 +46,7 @@ const saved = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getIte
 test.describe('settings screen', () => {
   test.describe.configure({ timeout: 150_000 });
 
-  test('Ctrl+, opens it, the section nav jumps, Esc and Back return to the run', async ({ page }) => {
+  test('Ctrl+, opens it, the section nav jumps, Esc and Back return to where you were', async ({ page }) => {
     await gotoSettings(page);
     const nav = page.getByRole('navigation', { name: 'Settings sections' });
     await expect(nav.getByRole('button', { name: 'Sources' })).toHaveAttribute('aria-current', 'true');
@@ -56,14 +56,23 @@ test.describe('settings screen', () => {
     // Run-navigation keys inside the form don't leave the screen.
     await page.keyboard.press('ArrowRight');
     await expect(page.getByTestId('settings-screen')).toBeVisible();
+    // Opened from the dashboard (the home screen), so Esc goes back there.
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('run-title')).toBeVisible();
+    await expect(page.getByTestId('dashboard')).toBeVisible();
     await expect(page.getByTestId('settings-screen')).toHaveCount(0);
     // Focus lands on the main area, not lost on <body>.
     await expect(page.locator('#main')).toBeFocused();
+    // From a run, Back returns to that run; the sidebar's Settings button toggles back too.
+    await page.getByTestId('run-list').getByRole('option').first().click();
+    await expect(page.getByTestId('run-title')).toBeVisible();
     await openSettings(page);
     await page.getByRole('button', { name: 'Back to runs' }).click();
     await expect(page.getByTestId('run-title')).toBeVisible();
+    await page.getByTestId('open-dashboard').click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(page.getByTestId('settings-screen')).toBeVisible();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await expect(page.getByTestId('dashboard')).toBeVisible();
   });
 
   test('appearance: theme, text size and density apply live', async ({ page }) => {
@@ -307,12 +316,14 @@ test.describe('settings screen', () => {
       startWithOs: true,
       maskSecrets: false,
     });
-    // The default view applies at once...
+    // The default view applies at once (Back returns to the dashboard; open a run)...
     await page.getByRole('button', { name: 'Back to runs' }).click();
+    await page.getByTestId('run-list').getByRole('option').first().click();
     await expect(page.getByTestId('view-files')).toBeVisible();
     // ...and after a restart.
     await page.reload();
     await ready(page);
+    await page.getByTestId('run-list').getByRole('option').first().click();
     await expect(page.getByTestId('view-files')).toBeVisible();
     await openSettings(page);
     await expect(group(page, 'Refresh rate').getByRole('radio', { name: 'Every 5 s' })).toBeChecked();

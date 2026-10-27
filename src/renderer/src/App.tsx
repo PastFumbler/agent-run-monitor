@@ -3,7 +3,7 @@
 // and overlays.
 
 import { useEffect, useRef } from 'react';
-import { Settings02Icon, CommandIcon, ListViewIcon } from '@hugeicons/core-free-icons';
+import { Settings02Icon, CommandIcon, DashboardSquare01Icon, ListViewIcon } from '@hugeicons/core-free-icons';
 import { getBackend } from './backend';
 import { Icon } from './components/Icon';
 import { CommandPalette } from './features/palette/CommandPalette';
@@ -18,7 +18,7 @@ import { useRunListModel } from './store/selectors';
 import { useStore } from './store/store';
 import { applyLook } from './theme/applyTheme';
 import { RouteView } from './views/RouteView';
-import { openRunWithDefaultView, showAllRuns } from './store/actions';
+import { goBack, openRunWithDefaultView, showAllRuns, showDashboard } from './store/actions';
 import { MOD, shortcutText } from './features/shortcuts/shortcuts';
 import { openStartupLayoutWhenReady } from './features/multiview/layouts';
 import { OpenMultiviewButton } from './features/multiview/OpenMultiviewButton';
@@ -75,16 +75,17 @@ function Shell() {
   navRef.current = model.nav;
   useShortcuts(() => navRef.current);
 
-  // Open the most recent run once runs arrive (and whenever the open run disappears).
+  // On the run view, open the most recent run when none is open (and whenever the open run disappears).
+  // The app starts on the dashboard, so nothing is opened (or counted as recent) until the run view shows.
   useEffect(() => {
-    if (!runsLoaded) return;
+    if (!runsLoaded || route !== 'run') return;
     const st = useStore.getState();
     if (currentId && st.runs[currentId]) return;
     const newest = st.order.find((id) => model.nav.includes(id));
     const first = st.recent.find((id) => st.runs[id]) ?? newest ?? model.nav[0] ?? null;
     if (first) st.openRun(first);
     else if (currentId) st.openRun(null);
-  }, [runsLoaded, currentId, model.nav]);
+  }, [runsLoaded, route, currentId, model.nav]);
 
   return (
     <div className="app" data-route={route}>
@@ -116,6 +117,17 @@ function Shell() {
                 <button
                   type="button"
                   className="btn btn--icon btn--ghost"
+                  aria-label="Dashboard"
+                  title={`Dashboard (${shortcutText('openHome')})`}
+                  aria-pressed={route === 'dashboard'}
+                  onClick={showDashboard}
+                  data-testid="open-dashboard"
+                >
+                  <Icon icon={DashboardSquare01Icon} />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--icon btn--ghost"
                   aria-label="All runs"
                   title={`All runs: organise into folders (${shortcutText('openRuns')})`}
                   onClick={() => showAllRuns()}
@@ -129,7 +141,7 @@ function Shell() {
                   aria-label="Settings"
                   title={`Settings (${MOD}+,)`}
                   aria-pressed={route === 'settings'}
-                  onClick={() => setRoute(route === 'settings' ? 'run' : 'settings')}
+                  onClick={() => (route === 'settings' ? goBack() : setRoute('settings'))}
                 >
                   <Icon icon={Settings02Icon} />
                 </button>

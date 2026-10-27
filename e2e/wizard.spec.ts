@@ -119,9 +119,9 @@ test.describe('first-run wizard', () => {
     });
     await expect(page.getByTestId('run-title')).toHaveText(expected);
 
-    // The wizard does not come back after a reload, and the choices stuck.
+    // The wizard does not come back after a reload (the app opens on the dashboard), and the choices stuck.
     await page.reload();
-    await expect(page.getByTestId('run-title')).toBeVisible();
+    await expect(page.getByTestId('dashboard')).toBeVisible();
     await expect(page.getByTestId('wizard')).toHaveCount(0);
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'sage');
     await expect(statusbar).toContainText(`${40 - codexRuns} runs`);
@@ -137,7 +137,7 @@ test.describe('first-run wizard', () => {
     await page.getByRole('button', { name: 'Open my latest run' }).click();
     await expect(page.getByTestId('run-title')).toBeVisible();
     await page.reload();
-    await expect(page.getByTestId('run-title')).toBeVisible();
+    await expect(page.getByTestId('dashboard')).toBeVisible();
     await expect(page.getByTestId('wizard')).toHaveCount(0);
   });
 

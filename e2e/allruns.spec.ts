@@ -20,7 +20,7 @@ test.afterEach(() => {
 
 async function openAllRuns(page: Page) {
   await page.goto(demo());
-  await expect(page.getByTestId('run-title')).toBeVisible();
+  await expect(page.getByTestId('dashboard')).toBeVisible();
   await page.getByTestId('open-all-runs').click();
   await expect(page.getByTestId('all-runs')).toBeVisible();
 }
@@ -44,9 +44,9 @@ test.describe('run list viewer', () => {
     await expect(weather.getByTestId('run-folder')).toHaveText('Client work');
     const todo = rows(page).filter({ hasText: 'todo-cli' }).first();
     await expect(todo.getByTestId('run-folder')).toHaveText('Unfiled');
-    // Esc goes back to the run view.
+    // Esc goes back to the dashboard it was opened from.
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('run-title')).toBeVisible();
+    await expect(page.getByTestId('dashboard')).toBeVisible();
     await expect(page.getByTestId('all-runs')).toHaveCount(0);
   });
 
@@ -181,7 +181,7 @@ test.describe('run list viewer', () => {
     await page.getByTestId('open-all-runs').click();
     await page.locator('body').press('/'); // does nothing here (the sidebar is hidden)
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('run-title')).toBeVisible();
+    await expect(page.getByTestId('dashboard')).toBeVisible();
     await expect(search).not.toBeFocused();
     // The palette's "Search runs in the sidebar" from All runs goes back and focuses it.
     await page.getByTestId('open-all-runs').click();

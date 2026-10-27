@@ -5,9 +5,10 @@ import { expect, test, type Page } from '@playwright/test';
 const NOW = '2026-10-27T15:30:00';
 const demo = (extra = '') => `/?now=${NOW}&live=0${extra}`;
 
+/** The app opens on the dashboard (home), with the run list in the sidebar. */
 async function ready(page: Page) {
   await expect(page.getByTestId('run-list').getByRole('option').first()).toBeVisible();
-  await expect(page.getByTestId('run-title')).toBeVisible();
+  await expect(page.getByTestId('dashboard')).toBeVisible();
 }
 
 async function openRun(page: Page, title: RegExp) {
@@ -33,7 +34,8 @@ test.describe('demo scenario', () => {
     await page.goto(demo());
     await ready(page);
     const list = page.getByTestId('run-list');
-    const codex = page.getByRole('button', { name: /^Codex, \d+ runs?$/ });
+    const sidebar = page.getByRole('complementary', { name: 'Runs' });
+    const codex = sidebar.getByRole('button', { name: /^Codex, \d+ runs?$/ });
     await codex.click();
     await expect(codex).toHaveAttribute('aria-pressed', 'true');
     const options = list.getByRole('option');
@@ -58,6 +60,9 @@ test.describe('demo scenario', () => {
     await page.goto(demo());
     await ready(page);
     const title = page.getByTestId('run-title');
+    // From the dashboard, → opens the first run in the list.
+    await page.keyboard.press('ArrowRight');
+    await expect(title).toHaveText((await page.getByTestId('run-list').getByRole('option').first().locator('.runrow__title').textContent()) ?? '');
     const start = await title.textContent();
     await page.keyboard.press('ArrowRight');
     await expect(title).not.toHaveText(start ?? '');
@@ -201,11 +206,11 @@ test.describe('demo scenario', () => {
     await page.goto(demo());
     await ready(page);
     const title = page.getByTestId('run-title');
-    const start = await title.textContent();
+    const second = (await page.getByTestId('run-list').getByRole('option').nth(1).locator('.runrow__title').textContent()) ?? '';
     await page.keyboard.press('j');
     await page.keyboard.press('j');
     await page.keyboard.press('Enter');
-    await expect(title).not.toHaveText(start ?? '');
+    await expect(title).toHaveText(second);
     const pin = page.getByRole('button', { name: /^(Pin|Unpin) run$/ });
     const before = await pin.getAttribute('aria-pressed');
     await page.keyboard.press('p');

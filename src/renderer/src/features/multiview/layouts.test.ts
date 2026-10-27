@@ -69,7 +69,7 @@ describe('startup layout (appInfo.startup.openLayout)', () => {
 
   it('waits for app info, settings and runs, then opens the named layout once', () => {
     const off = openStartupLayoutWhenReady();
-    expect(useStore.getState().route).toBe('run');
+    expect(useStore.getState().route).toBe('dashboard'); // the home screen
     boot('Morning', settings({ layouts: [{ name: 'Morning', runIds: ['b', 'a'] }] }));
     expect(useStore.getState().route).toBe('multiview');
     expect(useStore.getState().multi).toEqual(['b', 'a']);
@@ -92,7 +92,7 @@ describe('startup layout (appInfo.startup.openLayout)', () => {
       console.warn = () => {};
       boot(name, s);
       console.warn = warn;
-      expect(useStore.getState().route).toBe('run');
+      expect(useStore.getState().route).toBe('dashboard');
       expect(useStore.getState().multi).toEqual([]);
       off();
     }

@@ -62,14 +62,20 @@ export function showAllRuns(filter?: Partial<RunsViewFilter>): void {
   if (st.route !== 'runs') st.setRoute('runs');
 }
 
+/** Opens the dashboard (the home screen). */
+export function showDashboard(): void {
+  const st = useStore.getState();
+  if (st.route !== 'dashboard') st.setRoute('dashboard');
+}
+
 /**
- * Leaves a full-screen route (settings, the run list viewer): back to the multiviewer or the run list
- * viewer when that is where the user came from, else to the run view.
+ * Leaves a full-screen route (settings, the run list viewer): back to the dashboard, the multiviewer
+ * or the run list viewer when that is where the user came from, else to the run view.
  */
 export function goBack(): void {
   const st = useStore.getState();
   const last = st.lastRoute;
-  st.setRoute((last === 'multiview' || last === 'runs') && last !== st.route ? last : 'run');
+  st.setRoute((last === 'dashboard' || last === 'multiview' || last === 'runs') && last !== st.route ? last : 'run');
 }
 
 export function setView(v: RunView): void {

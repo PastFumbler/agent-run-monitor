@@ -276,7 +276,7 @@ export function Wizard() {
     const id = pickLatestRun(st.order, st.runs, st.settings.sources);
     st.setView(st.settings.defaultView);
     if (id) openRunWithDefaultView(id);
-    else st.setRoute('run');
+    else st.setRoute('dashboard');
     requestAnimationFrame(() => document.getElementById('main')?.focus());
   };
 

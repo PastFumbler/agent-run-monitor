@@ -50,6 +50,9 @@ async function start(settings: Record<string, unknown> = {}): Promise<Page> {
   const page = launched.page;
   await waitForRuns(page, 1);
   await expect.poll(() => statusBarRunCount(page), { timeout: 30_000 }).toBe(RUNS);
+  // The app opens on the dashboard; open the newest run from the list.
+  await expect(page.getByTestId('dashboard')).toBeVisible();
+  await page.getByTestId('run-list').getByRole('option').first().click();
   await expect(page.getByTestId('run-title')).toBeVisible();
   return page;
 }

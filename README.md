@@ -264,6 +264,10 @@ Notes:
 
 ![The main window: the run list on the left, a live Claude Code run on the right](docs/images/run-view-paper.png)
 
+### The dashboard
+
+The app opens on the **dashboard**, its home screen. It has a section for every status (Running, Waiting for you, Idle, Done, Failed, Stuck, Couldn't read this run). Each section shows its 3 most recently updated runs, or a short line when it has none. **See all (n)** opens [All runs](#all-runs-and-folders) filtered to that status. The agent chips at the top filter every section; All runs still lists every agent, so with chips on the link says "every agent". Click a run to open it. To come back, use the dashboard button at the top of the sidebar, press `g` then `d`, or choose "Show the dashboard" in the command palette.
+
 ### The run list
 
 The left side lists your runs, newest first.
@@ -326,6 +330,7 @@ Press `?` at any time for the list of shortcuts (it is also linked from the stat
 | `m` | Add or remove run from the multiviewer |
 | `g` then `m` | Open the multiviewer |
 | `g` then `a` | All runs (organise into folders) |
+| `g` then `d` | Dashboard (home) |
 | `f` | Maximise focused tile |
 | `←` or `→` (in the multiviewer) | Focus the previous or next tile |
 | `1` to `5` (in the multiviewer) | Switch the view of the focused tile |
@@ -519,7 +524,7 @@ src/
   preload/       Exposes a typed `window.armBackend` to the window, nothing else
   renderer/      The React app
     src/backend/   ElectronBackend (real data) and FixtureBackend (demo data, tests)
-    src/features/  runlist, runview, multiview, palette, shortcuts, settings, wizard, statusbar
+    src/features/  dashboard, runlist, allruns, runview, multiview, palette, shortcuts, settings, wizard, statusbar
     src/theme/     Six themes as CSS variables, and the contrast test
     src/motion/    The motion policy: reduce motion, low GPU mode, hidden window
     src/vendor/react-bits/  Vendored React Bits components (own licence)

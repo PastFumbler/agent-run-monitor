@@ -2,7 +2,7 @@
 
 import { THEME_IDS, type TriState } from '@shared/settings';
 import { THEMES } from '../../theme/themes';
-import { showAllRuns, updateSettings } from '../../store/actions';
+import { showAllRuns, showDashboard, updateSettings } from '../../store/actions';
 import { useStore } from '../../store/store';
 import { shortcutText } from '../shortcuts/shortcuts';
 
@@ -21,6 +21,13 @@ export function getCommands(): Command[] {
   const s = st.settings;
   const cmds: Command[] = [
     { id: 'open-settings', label: 'Open settings', keywords: 'preferences options configure', shortcut: shortcutText('settings'), run: () => st.setRoute('settings') },
+    {
+      id: 'open-dashboard',
+      label: 'Show the dashboard',
+      keywords: 'home start overview running done failed waiting stuck summary',
+      shortcut: shortcutText('openHome'),
+      run: () => showDashboard(),
+    },
     {
       id: 'open-all-runs',
       label: 'Show all runs',

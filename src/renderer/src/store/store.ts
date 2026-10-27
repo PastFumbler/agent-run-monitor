@@ -7,7 +7,8 @@ import type { AppInfo, PowerState, RunsUpdate } from '@shared/ipc';
 import type { AgentId, RunDetail, RunStatus, RunSummary } from '@shared/schema';
 import { defaultSettings, type RunView, type Settings } from '@shared/settings';
 
-export type Route = 'run' | 'runs' | 'multiview' | 'settings' | 'wizard';
+/** 'dashboard' is the home screen the app opens on. */
+export type Route = 'dashboard' | 'run' | 'runs' | 'multiview' | 'settings' | 'wizard';
 export type Overlay = 'none' | 'palette' | 'cheatsheet';
 
 export interface Filters {
@@ -80,6 +81,8 @@ export interface AppState {
   multiPage: number;
   /** Run list viewer ('runs' route): its status and folder filters. */
   runsView: RunsViewFilter;
+  /** Dashboard: its agent filter (empty = every agent). Its own, like the run list viewer's filters. */
+  homeAgents: AgentId[];
 
   settings: Settings;
   settingsLoaded: boolean;
@@ -112,6 +115,8 @@ export interface AppState {
   setTileView(id: string, v: RunView): void;
   setMultiPage(page: number): void;
   setRunsView(f: Partial<RunsViewFilter>): void;
+  toggleHomeAgent(a: AgentId): void;
+  clearHomeAgents(): void;
   /** Moves a picked run to another position in the multiviewer order. */
   moveMulti(id: string, toIndex: number): void;
   setSettingsLocal(s: Settings): void;
@@ -140,14 +145,15 @@ export const useStore = create<AppState>()((set, get) => ({
   multi: [],
   recent: loadRecent(),
   view: 'activity',
-  route: 'run',
-  lastRoute: 'run',
+  route: 'dashboard',
+  lastRoute: 'dashboard',
   overlay: 'none',
   focusedTile: null,
   maximizedTile: null,
   tileViews: {},
   multiPage: 0,
   runsView: { statuses: [], folder: 'all' },
+  homeAgents: [],
   settings: defaultSettings(),
   settingsLoaded: false,
   power: null,
@@ -258,6 +264,13 @@ export const useStore = create<AppState>()((set, get) => ({
   setRunsView(f) {
     set({ runsView: { ...get().runsView, ...f } });
   },
+  toggleHomeAgent(a) {
+    const cur = get().homeAgents;
+    set({ homeAgents: cur.includes(a) ? cur.filter((x) => x !== a) : [...cur, a] });
+  },
+  clearHomeAgents() {
+    set({ homeAgents: [] });
+  },
   moveMulti(id, toIndex) {
     const cur = get().multi;
     const from = cur.indexOf(id);
@@ -299,14 +312,15 @@ export function resetStore(): void {
     multi: [],
     recent: [],
     view: 'activity',
-    route: 'run',
-    lastRoute: 'run',
+    route: 'dashboard',
+    lastRoute: 'dashboard',
     overlay: 'none',
     focusedTile: null,
     maximizedTile: null,
     tileViews: {},
     multiPage: 0,
     runsView: { statuses: [], folder: 'all' },
+    homeAgents: [],
     settings: defaultSettings(),
     settingsLoaded: false,
     power: null,
