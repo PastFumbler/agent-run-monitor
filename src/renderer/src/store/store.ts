@@ -61,10 +61,16 @@ export interface AppState {
   recent: string[];
   view: RunView;
   route: Route;
+  /** Where the user was before the current route, so Esc from settings goes back there. */
+  lastRoute: Route;
   overlay: Overlay;
   /** Multiviewer: the focused tile and whether it is maximised (used by the `f` shortcut). */
   focusedTile: string | null;
   maximizedTile: string | null;
+  /** Multiviewer: the view each tile shows (falls back to settings.defaultView). */
+  tileViews: Record<string, RunView>;
+  /** Multiviewer: the page shown when more runs are picked than fit on one page (0-based). */
+  multiPage: number;
 
   settings: Settings;
   settingsLoaded: boolean;
@@ -93,6 +99,11 @@ export interface AppState {
   setOverlay(o: Overlay): void;
   setFocusedTile(id: string | null): void;
   toggleMaximizeFocused(): void;
+  setMaximizedTile(id: string | null): void;
+  setTileView(id: string, v: RunView): void;
+  setMultiPage(page: number): void;
+  /** Moves a picked run to another position in the multiviewer order. */
+  moveMulti(id: string, toIndex: number): void;
   setSettingsLocal(s: Settings): void;
   setPower(p: PowerState): void;
   setWindowVisible(v: boolean): void;
@@ -120,9 +131,12 @@ export const useStore = create<AppState>()((set, get) => ({
   recent: loadRecent(),
   view: 'activity',
   route: 'run',
+  lastRoute: 'run',
   overlay: 'none',
   focusedTile: null,
   maximizedTile: null,
+  tileViews: {},
+  multiPage: 0,
   settings: defaultSettings(),
   settingsLoaded: false,
   power: null,
@@ -207,7 +221,8 @@ export const useStore = create<AppState>()((set, get) => ({
     set({ view: v });
   },
   setRoute(r) {
-    set({ route: r, overlay: 'none' });
+    const cur = get().route;
+    set({ route: r, overlay: 'none', lastRoute: cur !== r ? cur : get().lastRoute });
   },
   setOverlay(o) {
     set({ overlay: o });
@@ -216,9 +231,29 @@ export const useStore = create<AppState>()((set, get) => ({
     set({ focusedTile: id });
   },
   toggleMaximizeFocused() {
-    // TODO(multiview): the multiviewer reads maximizedTile to show one tile full size.
+    // The multiviewer reads maximizedTile to show one tile full size (f, Esc, double-click).
     const { focusedTile, maximizedTile } = get();
     set({ maximizedTile: maximizedTile ? null : focusedTile });
+  },
+  setMaximizedTile(id) {
+    set({ maximizedTile: id, ...(id ? { focusedTile: id } : {}) });
+  },
+  setTileView(id, v) {
+    set({ tileViews: { ...get().tileViews, [id]: v } });
+  },
+  setMultiPage(page) {
+    set({ multiPage: Math.max(0, Math.floor(page)) });
+  },
+  moveMulti(id, toIndex) {
+    const cur = get().multi;
+    const from = cur.indexOf(id);
+    if (from < 0) return;
+    const to = Math.max(0, Math.min(cur.length - 1, toIndex));
+    if (from === to) return;
+    const next = cur.slice();
+    next.splice(from, 1);
+    next.splice(to, 0, id);
+    set({ multi: next });
   },
   setSettingsLocal(s) {
     set({ settings: s, settingsLoaded: true });
@@ -251,9 +286,12 @@ export function resetStore(): void {
     recent: [],
     view: 'activity',
     route: 'run',
+    lastRoute: 'run',
     overlay: 'none',
     focusedTile: null,
     maximizedTile: null,
+    tileViews: {},
+    multiPage: 0,
     settings: defaultSettings(),
     settingsLoaded: false,
     power: null,

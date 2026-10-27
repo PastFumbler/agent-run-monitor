@@ -20,6 +20,8 @@ import { applyLook } from './theme/applyTheme';
 import { RouteView } from './views/RouteView';
 import { openRunWithDefaultView } from './store/actions';
 import { MOD } from './features/shortcuts/shortcuts';
+import { openStartupLayoutWhenReady } from './features/multiview/layouts';
+import { OpenMultiviewButton } from './features/multiview/OpenMultiviewButton';
 
 function useBoot() {
   useEffect(() => {
@@ -36,7 +38,8 @@ function useBoot() {
         if (useStore.getState().runs[id]) openRunWithDefaultView(id);
       }) ?? (() => {}),
     ];
-    // TODO(multiview): appInfo.startup.openLayout names a saved layout to open on start.
+    // appInfo.startup.openLayout names a saved layout to open on start (once everything has loaded).
+    offs.push(openStartupLayoutWhenReady());
     b.appInfo()
       .then((info) => alive && st.setAppInfo(info))
       .catch(() => {});
@@ -123,6 +126,7 @@ function Shell() {
             </div>
             <SearchBox />
             <FilterChips model={model} />
+            <OpenMultiviewButton />
           </div>
           <RunList model={model} />
         </aside>

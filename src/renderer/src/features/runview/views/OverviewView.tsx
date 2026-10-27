@@ -11,15 +11,21 @@ import { useNow } from '../../../store/clock';
 import { useStore } from '../../../store/store';
 import Counter from '../../../vendor/react-bits/Counter/Counter';
 import StatusMark from '../../../vendor/react-bits/StatusMark/StatusMark';
+import { useId } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { RunViewProps } from './ActivityView';
 
 export function OverviewView({ detail, compact }: RunViewProps) {
   const s = detail.summary;
   const timeFormat = useStore((st) => st.settings.timeFormat);
-  const runs = useStore((st) => st.runs);
+  // Select only this run's relatives, so an Overview (one per multiviewer tile) does not
+  // re-render on every other run's update and defeat the tile throttle.
+  const children = useStore(useShallow((st) => Object.values(st.runs).filter((r) => r.parentId === s.id)));
+  const parent = useStore((st) => (s.parentId ? st.runs[s.parentId] : undefined));
   const now = useNow();
-  const children = Object.values(runs).filter((r) => r.parentId === s.id);
-  const parent = s.parentId ? runs[s.parentId] : undefined;
+  // Ids must be unique when several tiles show an Overview at once.
+  const uid = useId();
+  const ids = { readerror: `${uid}-readerror`, status: `${uid}-status`, subruns: `${uid}-subruns` };
   const tokens = (s.counts.inputTokens ?? 0) + (s.counts.outputTokens ?? 0);
 
   const stats: { label: string; value: number }[] = [
@@ -34,8 +40,8 @@ export function OverviewView({ detail, compact }: RunViewProps) {
   return (
     <div className="overview" data-testid="view-overview">
       {s.status === 'unreadable' ? (
-        <section className="readerror" aria-labelledby="readerror-title">
-          <h2 id="readerror-title">
+        <section className="readerror" aria-labelledby={ids.readerror}>
+          <h2 id={ids.readerror}>
             <StatusMark status="unreadable" size={20} decorative />
             Couldn't read this run
           </h2>
@@ -49,10 +55,10 @@ export function OverviewView({ detail, compact }: RunViewProps) {
           </p>
         </section>
       ) : (
-        <section className="card overview__status" aria-labelledby="ov-status">
+        <section className="card overview__status" aria-labelledby={ids.status}>
           <StatusMark status={s.status} size={22} decorative />
           <div>
-            <h2 id="ov-status">{STATUS_LABELS[s.status]}</h2>
+            <h2 id={ids.status}>{STATUS_LABELS[s.status]}</h2>
             <p className="muted" style={{ margin: '2px 0 0' }}>
               {s.statusDetail ?? defaultDetail(s.status)}
             </p>
@@ -120,8 +126,8 @@ export function OverviewView({ detail, compact }: RunViewProps) {
       </section>
 
       {parent || children.length ? (
-        <section className="card" aria-labelledby="ov-subruns" style={{ padding: '12px 14px' }}>
-          <h2 id="ov-subruns" style={{ margin: '0 0 6px', fontSize: '1rem' }}>
+        <section className="card" aria-labelledby={ids.subruns} style={{ padding: '12px 14px' }}>
+          <h2 id={ids.subruns} style={{ margin: '0 0 6px', fontSize: '1rem' }}>
             {parent ? 'Part of' : 'Sub-runs'}
           </h2>
           <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'grid', gap: 4 }}>

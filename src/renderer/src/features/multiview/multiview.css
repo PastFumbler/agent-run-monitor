@@ -1,0 +1,429 @@
+/* Multiviewer. Colours only from theme tokens; motion only through --motion-duration (the policy). */
+
+.multiview {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---------- Toolbar ---------- */
+
+.mv-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  padding: 10px var(--pad);
+  border-bottom: 1px solid var(--border);
+}
+
+.mv-toolbar__title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 8px 0 0;
+  font-size: 1.08rem;
+  font-weight: 650;
+}
+
+.mv-toolbar__count {
+  font-size: 0.86rem;
+  font-weight: 400;
+}
+
+.mv-toolbar__spacer {
+  flex: 1;
+}
+
+.mv-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mv-pager__label {
+  min-width: 7.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+}
+
+/* ---------- Grid ---------- */
+
+.mv-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  grid-template-columns: repeat(var(--mv-cols, 1), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--mv-rows, 1), minmax(170px, 1fr));
+}
+
+/* Maximised: one cell; the other tiles stay mounted but hidden. */
+.mv-grid[data-maximized] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.mv-tile[hidden] {
+  display: none !important;
+}
+
+/* ---------- Tile ---------- */
+
+.mv-tile {
+  --pad: 10px;
+  --gap: 8px;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.mv-tile:focus {
+  outline: none;
+}
+
+/* The focused tile (aria-current) always shows the focus ring, not only after keyboard focus. */
+.mv-tile[data-focused],
+.mv-tile:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.mv-tile[data-dragging] {
+  z-index: 2;
+  opacity: 0.92;
+}
+
+/* Paused tiles (off-screen, behind a maximised tile, window hidden): every animation holds still. */
+.mv-tile[data-paused] *,
+.mv-tile[data-paused] *::before,
+.mv-tile[data-paused] *::after {
+  animation-play-state: paused !important;
+}
+
+.mv-tile__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 6px 6px;
+  border-bottom: 1px solid var(--border);
+  background: var(--raised);
+  user-select: none;
+}
+
+.mv-tile__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mv-tile__row--wrap {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  padding-left: 4px;
+}
+
+.mv-tile__handle {
+  cursor: grab;
+  touch-action: none;
+}
+
+.mv-tile__handle:active {
+  cursor: grabbing;
+}
+
+.mv-tile__handle[aria-disabled='true'] {
+  cursor: default;
+}
+
+.mv-tile__title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mv-tile__title[data-untitled] {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.mv-tile[data-missing] .mv-tile__title {
+  color: var(--text-muted);
+}
+
+.mv-tile__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mv-tile__meta {
+  min-width: 0;
+  flex: 1 1 8em;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mv-tile__views {
+  margin-left: auto;
+}
+
+.mv-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+.mv-tile__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-size: 0.93rem;
+}
+
+.mv-tile__note {
+  margin: auto;
+  max-width: 34em;
+  padding: 12px 14px;
+  color: var(--text-muted);
+  text-align: center;
+  overflow: auto;
+}
+
+.mv-tile__note p {
+  margin: 0 0 6px;
+}
+
+.mv-tile__note b {
+  color: var(--text);
+}
+
+/* ---------- Tile view switcher (compact segmented control) ---------- */
+
+.mv-seg {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  overflow: hidden;
+}
+
+.mv-seg__opt {
+  min-height: 24px;
+  padding: 1px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition: background-color var(--motion-duration) ease;
+}
+
+/* Low GPU: opacity/transform only, so the background just switches. */
+:root[data-low-gpu] .mv-seg__opt {
+  transition: none;
+}
+
+.mv-seg__opt + .mv-seg__opt {
+  border-left: 1px solid var(--border);
+}
+
+.mv-seg__opt:hover {
+  background: var(--hover);
+}
+
+/* Checked: background, weight and an underline, so it never relies on colour. */
+.mv-seg__opt[aria-checked='true'] {
+  background: var(--selected);
+  color: var(--text);
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.mv-seg__opt:focus-visible {
+  outline-offset: -2px;
+}
+
+.mv-seg__short {
+  display: none;
+}
+
+@container (max-width: 330px) {
+  .mv-seg__long {
+    display: none;
+  }
+  .mv-seg__short {
+    display: inline;
+  }
+  .mv-seg__opt {
+    padding: 1px 6px;
+  }
+}
+
+/* ---------- Empty state ---------- */
+
+.mv-empty {
+  margin: 8vh auto 0;
+  max-width: 560px;
+  padding: 24px;
+}
+
+.mv-empty h2 {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+}
+
+.mv-empty__layouts h3 {
+  margin: 18px 0 8px;
+  font-size: 1rem;
+}
+
+/* ---------- Dialogs ---------- */
+
+.mv-dialog {
+  width: min(480px, 100%);
+}
+
+.mv-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mv-form label {
+  font-weight: 600;
+}
+
+.mv-form__hint {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.mv-form__error {
+  margin: 0;
+  color: var(--status-failed-text);
+  font-weight: 600;
+}
+
+.mv-dialog__foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.mv-form .mv-dialog__foot {
+  margin: 8px -14px -14px;
+}
+
+.mv-dialog__foot .muted {
+  flex: 1;
+  font-size: 0.86rem;
+}
+
+.mv-picker [cmdk-item][data-picked] .mv-picker__state {
+  font-weight: 650;
+  color: var(--text);
+}
+
+.mv-picker__mark {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.mv-picker__state {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.mv-layouts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mv-layouts__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+}
+
+.mv-layouts__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.mv-layouts__name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mv-layouts__text .muted {
+  font-size: 0.84rem;
+}
+
+/* ---------- "Open multiviewer (n)" ---------- */
+
+.mv-open {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mv-open__btn {
+  flex: 1;
+}

@@ -39,7 +39,7 @@ export function useShortcuts(getNav: () => string[]): void {
         } else if (st.maximizedTile) {
           st.toggleMaximizeFocused();
         } else if (st.route === 'settings') {
-          st.setRoute('run');
+          st.setRoute(st.lastRoute === 'multiview' ? 'multiview' : 'run');
         }
         return;
       }
@@ -118,8 +118,11 @@ export function useShortcuts(getNav: () => string[]): void {
           return;
         }
         case 'f':
-          // TODO(multiview): maximise the focused tile; the store action is already wired.
-          if (st.route === 'multiview') st.toggleMaximizeFocused();
+          // Multiviewer: maximise / restore the focused tile (Esc also restores, above).
+          if (st.route === 'multiview') {
+            e.preventDefault();
+            st.toggleMaximizeFocused();
+          }
           return;
         case '?':
           e.preventDefault();

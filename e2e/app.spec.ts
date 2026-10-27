@@ -198,11 +198,12 @@ test.describe('demo scenario', () => {
     await expect(page.getByRole('button', { name: 'In multiviewer' })).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('g');
     await page.keyboard.press('m');
-    await expect(page.getByTestId('multiview-placeholder')).toBeVisible();
+    await expect(page.getByTestId('multiview')).toBeVisible();
     await page.keyboard.press('Control+,');
-    await expect(page.getByTestId('settings-placeholder')).toBeVisible();
+    await expect(page.getByTestId('settings-screen')).toBeVisible();
+    // Settings was opened from the multiviewer, so Esc goes back there.
     await page.keyboard.press('Escape');
-    await expect(page.getByTestId('run-title')).toBeVisible();
+    await expect(page.getByTestId('multiview')).toBeVisible();
   });
 
   test('Ctrl-click and Shift-click build a multiviewer selection', async ({ page }) => {
@@ -329,8 +330,9 @@ test.describe('live updates and other scenarios', () => {
 
   test('first run shows the wizard', async ({ page }) => {
     await page.goto(`/?scenario=firstrun&now=${NOW}&live=0`);
-    await expect(page.getByTestId('wizard-placeholder')).toBeVisible();
-    await page.getByRole('button', { name: 'Start watching' }).click();
+    await expect(page.getByTestId('wizard')).toBeVisible();
+    await page.getByRole('button', { name: 'Skip setup' }).click();
+    await page.getByRole('button', { name: 'Open my latest run' }).click();
     await expect(page.getByTestId('run-title')).toBeVisible();
   });
 });
