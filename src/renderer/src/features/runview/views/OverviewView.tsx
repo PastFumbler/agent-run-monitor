@@ -2,7 +2,7 @@
 // "Couldn't read this run" card for unreadable runs (never a crash).
 
 import { FolderOpenIcon, HelpCircleIcon } from '@hugeicons/core-free-icons';
-import { AGENT_NAMES, STATUS_LABELS } from '@shared/schema';
+import { AGENT_NAMES, STATUS_LABELS, type RunSummary } from '@shared/schema';
 import { Icon } from '../../../components/Icon';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { formatDuration, formatTime } from '../../../lib/time';
@@ -25,7 +25,7 @@ export function OverviewView({ detail, compact }: RunViewProps) {
   const now = useNow();
   // Ids must be unique when several tiles show an Overview at once.
   const uid = useId();
-  const ids = { readerror: `${uid}-readerror`, status: `${uid}-status`, subruns: `${uid}-subruns` };
+  const ids = { readerror: `${uid}-readerror`, status: `${uid}-status`, parent: `${uid}-parent`, subruns: `${uid}-subruns` };
   const tokens = (s.counts.inputTokens ?? 0) + (s.counts.outputTokens ?? 0);
 
   const stats: { label: string; value: number }[] = [
@@ -125,23 +125,9 @@ export function OverviewView({ detail, compact }: RunViewProps) {
         </dl>
       </section>
 
-      {parent || children.length ? (
-        <section className="card" aria-labelledby={ids.subruns} style={{ padding: '12px 14px' }}>
-          <h2 id={ids.subruns} style={{ margin: '0 0 6px', fontSize: '1rem' }}>
-            {parent ? 'Part of' : 'Sub-runs'}
-          </h2>
-          <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
-            {(parent ? [parent] : children).map((r) => (
-              <li key={r.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <StatusBadge status={r.status} short />
-                <button type="button" className="btn btn--ghost" onClick={() => openRunWithDefaultView(r.id)}>
-                  {r.title || 'Untitled run'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {/* A middle run (a workflow inside a session) has both: show its parent and its sub-runs. */}
+      {parent ? <RelatedRuns id={ids.parent} heading="Part of" runs={[parent]} /> : null}
+      {children.length ? <RelatedRuns id={ids.subruns} heading="Sub-runs" runs={children} /> : null}
 
       {compact ? null : (
         <p className="muted" style={{ margin: 0, fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -150,6 +136,26 @@ export function OverviewView({ detail, compact }: RunViewProps) {
         </p>
       )}
     </div>
+  );
+}
+
+function RelatedRuns({ id, heading, runs }: { id: string; heading: string; runs: RunSummary[] }) {
+  return (
+    <section className="card" aria-labelledby={id} style={{ padding: '12px 14px' }}>
+      <h2 id={id} style={{ margin: '0 0 6px', fontSize: '1rem' }}>
+        {heading}
+      </h2>
+      <ul style={{ margin: 0, paddingLeft: 0, listStyle: 'none', display: 'grid', gap: 4 }}>
+        {runs.map((r) => (
+          <li key={r.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <StatusBadge status={r.status} short />
+            <button type="button" className="btn btn--ghost" onClick={() => openRunWithDefaultView(r.id)}>
+              {r.title || 'Untitled run'}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

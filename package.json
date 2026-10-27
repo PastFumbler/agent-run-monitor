@@ -27,6 +27,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:electron": "npm run build && playwright test -c playwright.electron.config.ts",
     "dist": "electron-vite build && electron-builder --publish never",
     "dist:dir": "electron-vite build && electron-builder --dir --publish never",
     "set-repo": "node scripts/set-repo.mjs",

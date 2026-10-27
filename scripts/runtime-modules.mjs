@@ -324,7 +324,7 @@ async function run() {
       if (!(await visible(wizard.first()))) return 'no wizard shown';
     }
     const kind = await wizard.first().getAttribute('data-testid');
-    const forward = page.getByRole('button', { name: /^(start watching|get started|next|continue|finish|done|start|let's go|looks good|skip)\b/i });
+    const forward = page.getByRole('button', { name: /^(open my latest run|start watching|get started|next|continue|finish|done|start|let's go|looks good|skip)\b/i });
     let clicks = 0;
     for (let i = 0; i < 15 && !(await visible(runList)); i++) {
       const btn = forward.last();
