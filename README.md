@@ -1,10 +1,34 @@
 # Agent Run Monitor
 
+[![CI](https://github.com/OWNER/agent-run-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/agent-run-monitor/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/OWNER/agent-run-monitor?display_name=tag&sort=semver)](https://github.com/OWNER/agent-run-monitor/releases/latest)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
+![Platforms: Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
+
+**See what all your coding agents are doing, in one calm window. Read-only, local-only, no account.**
+
 Agent Run Monitor is a desktop app for Windows, macOS and Linux that shows what your coding agents are doing. Claude Code, Codex, Gemini CLI, GitHub Copilot, Aider, Cursor and others save each session to a file on your computer. The app reads those files and shows every session as a **run**: what it is doing now, what it did, which files it changed, and whether it finished, failed, is waiting for you or looks stuck. It only reads. It never controls an agent, and it never changes an agent's files.
 
 ![A live run updating, stepping between runs with the arrow keys, searching with Ctrl+K and opening the multiviewer](docs/images/demo.gif)
 
 All pictures on this page come from the app's built-in demo, which uses made-up runs.
+
+## Highlights
+
+- **12 agents, one view.** Claude Code, Codex, Gemini CLI, Qwen Code, Copilot in VS Code, Copilot CLI, Aider, Cursor, Cline, Roo Code, Continue and OpenCode, all shown in the same format.
+- **Live.** Runs update within a second or two of the agent writing. You see the current tool call, the latest messages and reasoning, and the files being changed.
+- **Clear status.** Running, waiting for you, idle, done, failed, stuck, or couldn't be read. Each status has its own shape and word as well as a colour.
+- **Multiviewer.** Watch up to 12 runs side by side, each tile with its own view. Layouts can be saved.
+- **Fast to get around.** Arrow keys between runs, `Ctrl+K` command palette, filter chips, pinned and recent runs, and a shortcut sheet on `?`.
+- **Private by design.** Read-only, no network calls, no telemetry, and secrets masked on screen by default.
+- **Easy on your machine.** Low GPU mode (automatic on battery), reduce motion, and everything pauses while the window is hidden.
+- **Set up in a minute.** A first-run wizard finds your installed agents on its own and shows how many runs each has.
+
+## Quick start
+
+1. Download the installer for your system from the [releases page](https://github.com/OWNER/agent-run-monitor/releases/latest) (Windows `setup-x64.exe`, macOS `.dmg`, Linux `.AppImage` or `.deb`). Details: [Install](#install).
+2. Start **Agent Run Monitor**. The setup wizard finds your agents and shows what it found.
+3. Click **Open my latest run**. Start a session in any supported agent and it appears in the list within seconds.
 
 ## Privacy
 
@@ -20,6 +44,7 @@ More detail: [SECURITY.md](SECURITY.md) and section 3.4 of [the plan](docs/PLAN.
 
 - [Supported agents](#supported-agents)
 - [What can't be monitored](#what-cant-be-monitored)
+- [How it works](#how-it-works)
 - [Install](#install)
 - [First launch](#first-launch)
 - [Connecting each agent](#connecting-each-agent)
@@ -27,7 +52,10 @@ More detail: [SECURITY.md](SECURITY.md) and section 3.4 of [the plan](docs/PLAN.
 - [Using the app](#using-the-app)
 - [Troubleshooting](#troubleshooting)
 - [Uninstall](#uninstall)
-- [Build from source](#build-from-source)
+- [FAQ](#faq)
+- [Code overview](#code-overview)
+- [Development](#development)
+- [Project status](#project-status)
 - [Contributing](#contributing)
 - [Licence](#licence)
 
@@ -59,6 +87,41 @@ The exact folders for each operating system are in [Where each agent stores its 
 - **Cloud-only agents**, such as Codex cloud tasks, the Copilot coding agent on github.com, Devin and Jules. They run on someone else's computer and leave nothing on yours.
 - **"Waiting for approval" is not always certain.** Only Claude Code and Copilot CLI record that they are waiting for you. For the other agents the app works it out from a tool call with no answer and a file that has gone quiet, so it can be wrong.
 - **Exact times for every message.** Aider records only when a session started, and Continue keeps no per-message times. Their events are shown in order, without exact times.
+
+## How it works
+
+Coding agents keep a log of every session on your disk, usually one file per session that grows as the agent works. Agent Run Monitor watches those folders and reads the logs as they change.
+
+```mermaid
+flowchart LR
+  subgraph disk["Your disk (read only)"]
+    direction TB
+    a1["~/.claude/projects/…/*.jsonl"]
+    a2["~/.codex/sessions/…/rollout-*.jsonl"]
+    a3["Cursor / OpenCode databases"]
+    a4["…and the other agents"]
+  end
+  subgraph main["App, background part"]
+    direction TB
+    w["Watcher<br/>(file events + slow poll)"] --> ad["Adapters<br/>(one per agent)"]
+    ad --> st["Run store<br/>(status, batching)"]
+    st --> mk["Secret masking"]
+  end
+  subgraph ui["App window (sandboxed)"]
+    direction TB
+    v["Run list · run views<br/>multiviewer · settings"]
+  end
+  disk --> w
+  mk -- "runs in one common format" --> v
+```
+
+1. **Find.** For each agent, a small *adapter* knows where that agent saves its sessions on Windows, macOS and Linux, including the environment variables that move them. The first-run wizard uses this to show what is installed.
+2. **Read.** When a session file grows, the adapter reads only the new part (it remembers how far it got), so even a 200 MB session costs almost nothing to follow. Every agent's own format is turned into one common format: a run with a title, project, model and status, and a list of events (messages, reasoning, tool calls and results, file changes and errors).
+3. **Judge.** The app works out each run's status from what the file says and how long it has been quiet. For example, a finished turn is *idle* for 3 minutes and then *done*; a run that looks busy but has been silent for 20 minutes is *stuck*; a shell command open for more than 12 minutes is *stuck*. Codex doesn't record when it is waiting for your approval, so a Codex tool call with no answer for a minute shows as **Probably waiting**.
+4. **Mask.** Before anything reaches the window, text that looks like a secret is replaced with `••••`.
+5. **Show.** Changes are sent to the window in small batches (4 a second normally, once a second in low GPU mode, every 5 seconds while the window is hidden), so following many busy runs stays cheap.
+
+If a file can't be understood (for example after an agent changes its format), that one run shows **Couldn't read this run** with the reason, and everything else keeps working.
 
 ## Install
 
@@ -388,7 +451,163 @@ Delete the AppImage, or remove the Debian package with `sudo apt remove agent-ru
 
 Settings > About shows the exact path of your settings file.
 
-## Build from source
+## FAQ
+
+**Does it send my code or sessions anywhere?**
+No. Nothing leaves your computer. The app makes no network requests at all, except the optional update check, which is off unless you turn it on and only asks GitHub for the latest version number.
+
+**Can it start, stop or approve things in my agents?**
+No. It is a viewer. It never writes to an agent's files and has no way to send anything to an agent.
+
+**Will it slow my agents down or lock their files?**
+No. It opens files for reading only and reads just the part that is new since last time. Databases (Cursor, OpenCode) are copied first and the copy is read, so the agent's own database is never locked.
+
+**How accurate is the status?**
+For Claude Code and Copilot CLI, "waiting for you" comes straight from what the agent records. For the others, and for "stuck", the app judges from the file: what happened last and how long it has been quiet. When the app has had to guess that a run is waiting for you (today this applies to Codex), it says **Probably waiting** instead of **Waiting for you**. It can be wrong for a moment, for example right after a long pause in a busy run. The thresholds are listed under [How it works](#how-it-works).
+
+**Why do I see so many runs from one session?**
+Some agents start helper agents (Claude Code's sub-agents and workflow runs, for example). Each one is a run of its own, linked to its parent: the parent's Overview lists them under *Sub-runs*.
+
+**Does it work with WSL, remote machines or containers?**
+It reads folders it can reach. On Windows you can add a folder inside WSL by hand, for example `\\wsl$\Ubuntu\home\<you>\.claude`. For VS Code remote sessions, run the app where the agent runs (on Linux it also checks the VS Code server folders for Cline and Roo Code).
+
+**Why is the download so large?**
+The app is built with Electron, which includes its own copy of Chromium. That is most of the size.
+
+**Why Electron and not Tauri?**
+Tauri was the first choice. It couldn't be built on the development machine (no C++ toolchain, and no administrator rights to install one), and every part of the app had to be tested there. Electron needs only Node.js, which also makes it easy to add an agent: adapters are plain TypeScript. The full reasoning is in [docs/PLAN.md](docs/PLAN.md#2-stack-and-why-electron-rather-than-tauri).
+
+**My agent isn't supported. Can I add it?**
+Yes. An adapter is one small folder of TypeScript plus a test fixture. [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-source-adapter) walks through it, or [open an adapter request](https://github.com/OWNER/agent-run-monitor/issues/new?template=adapter_request.yml).
+
+## Code overview
+
+A quick tour for anyone who wants to read, fix or extend the code. The design document with the full reasoning is [docs/PLAN.md](docs/PLAN.md).
+
+### Stack
+
+| Part | Built with |
+| --- | --- |
+| Desktop shell | [Electron](https://www.electronjs.org/) 45, packaged with electron-builder (NSIS and zip on Windows, dmg on macOS, AppImage and deb on Linux) |
+| Background process | TypeScript on Node 24: [chokidar](https://github.com/paulmillr/chokidar) for file watching, Node's built-in `node:sqlite` for databases (no native modules) |
+| Window | React 19, [zustand](https://github.com/pmndrs/zustand) for state, [cmdk](https://cmdk.paco.me/) for the command palette, [dnd-kit](https://dndkit.com/) for tile dragging, [TanStack Virtual](https://tanstack.com/virtual) for long lists, [motion](https://motion.dev/) and eight [React Bits](https://github.com/DavidHDev/react-bits) components for animation |
+| Build | electron-vite and Vite |
+| Tests | Vitest (unit and component), Playwright (in the browser and in the real Electron app) |
+
+### Repository map
+
+```
+src/
+  shared/        Types used by both sides: the run and event schema, settings, the IPC contract
+  core/          Plain Node, no Electron. Testable on its own.
+    adapters/    One folder per agent family (claude-code, codex, gemini, copilot, aider,
+                 cursor, vscode-agents, opencode), each with its tests
+    store.ts     RunStore: discovery, watching, incremental parsing, status clock, batching
+    status.ts    Turns "what the file says + how long it's been quiet" into a status
+    build.ts     Turns an adapter's result into RunSummary / RunDetail; crash-proof parsing
+    masking.ts   Secret masking
+    jsonl.ts     Incremental, read-only JSONL reader (resumes from a byte offset)
+    sqlite.ts    Copy-then-read SQLite snapshots; the only file in core allowed to write
+  main/          Electron main process: window, security, IPC handlers, settings file,
+                 notifications, power state, start-with-OS, update check
+  preload/       Exposes a typed `window.armBackend` to the window, nothing else
+  renderer/      The React app
+    src/backend/   ElectronBackend (real data) and FixtureBackend (demo data, tests)
+    src/features/  runlist, runview, multiview, palette, shortcuts, settings, wizard, statusbar
+    src/theme/     Six themes as CSS variables, and the contrast test
+    src/motion/    The motion policy: reduce motion, low GPU mode, hidden window
+    src/vendor/react-bits/  Vendored React Bits components (own licence)
+test/fixtures/   Sample session files per agent, including corrupt ones
+e2e/             Playwright tests of the UI with demo data, in a browser
+e2e-electron/    Playwright tests of the real Electron app
+scripts/         Secret scan, live-run simulator, screenshots and GIF, GPU measurement,
+                 Smart App Control audit
+docs/            PLAN.md (design), BLOCK-TEST.md (Smart App Control test), images
+```
+
+### The life of an update
+
+1. An agent appends a line to its session file.
+2. The watcher in `core/store.ts` notices (a slow poll catches anything the file events miss) and marks that run as changed.
+3. The agent's adapter `parse()`s the run again, starting from the byte offset where it stopped last time, so only the new lines are read.
+4. `core/status.ts` judges the status, and `core/build.ts` builds the `RunSummary` (for the list) and, for runs on screen, the `RunDetail` (events, files, tool calls), with secrets masked.
+5. The store collects changes and flushes them in one batch per interval over IPC.
+6. The preload bridge hands them to the window's zustand store, and only the components showing those runs re-render.
+
+### The common format
+
+The window only ever sees these types (from `src/shared/schema.ts`, shortened):
+
+```ts
+interface RunSummary {
+  id: string;                 // stable across restarts
+  agent: AgentId;             // 'claude-code' | 'codex' | 'gemini-cli' | ...
+  title: string;              // usually the first prompt
+  projectName: string;
+  model?: string;
+  startedAt: number;
+  updatedAt: number;
+  status: 'running' | 'waiting' | 'idle' | 'done' | 'failed' | 'stuck' | 'unreadable';
+  statusInferred?: boolean;   // true when 'waiting' was worked out rather than recorded
+  statusDetail?: string;      // plain words, e.g. "Waiting for tool approval"
+  counts: { events: number; toolCalls: number; errors: number; filesChanged: number; /* ... */ };
+  sourcePath: string;
+  parentId?: string;          // sub-agent runs point at their parent
+}
+
+interface RunEvent {
+  kind: 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result' | 'file_change' | 'error' | 'system';
+  text: string;               // already masked
+  ts?: number;
+  toolName?: string;
+  toolCallId?: string;        // pairs a call with its result
+  filePath?: string;
+  isError?: boolean;
+}
+```
+
+### Adapters
+
+Each agent is supported by an adapter that implements this contract (from `src/core/adapter.ts`, shortened):
+
+```ts
+interface SourceAdapter {
+  id: AgentId;
+  displayName: string;
+  confidence: 'verified' | 'source' | 'best-effort';
+  defaultRoots(env: Env): string[];                           // where to look, per OS
+  discover(roots: string[], ctx: DiscoverContext): Promise<SessionRef[]>;            // cheap: list and stat only
+  parse(ref: SessionRef, prev: ParseState | undefined, ctx: ParseContext): Promise<ParseState>; // incremental
+  isRelevantChange?(path: string): boolean;                   // ignore cache folders
+  isLiveSignal?(path: string): boolean;                       // side files that change a live run
+}
+```
+
+`parse()` fills a `ParsedRun` (title, project, events, whether the last turn is in progress, completed, waiting, failed or aborted, any open tool call) and the shared code does the rest. Whatever an adapter throws becomes a "Couldn't read this run" card. Unknown record types are skipped and counted, never fatal. That way a new agent version degrades gently instead of breaking the app.
+
+To add an agent, follow [CONTRIBUTING.md: Adding a source adapter](CONTRIBUTING.md#adding-a-source-adapter).
+
+### Security boundaries
+
+- **The window can't touch your disk.** It runs sandboxed with context isolation and no Node.js. Its only door is the typed `Backend` interface in `src/shared/ipc.ts`, and every call is validated in `src/main/ipc.ts`.
+- **No network.** `src/main/security.ts` sets a strict Content Security Policy, blocks navigation, pop-ups and every permission request, and cancels any web request that is not for the app's own files. The opt-in update check is allowed one URL at a time, only while it runs.
+- **Read-only parsing.** `src/core/readonly.test.ts` fails the build if any code in `src/core` other than the SQLite snapshot helper uses a file-writing API. The app writes only its own settings, into its own settings folder (`src/main/files.ts`).
+- **No child processes, no native modules.** This keeps the app's footprint small and predictable, which also matters for Windows Smart App Control (see [docs/BLOCK-TEST.md](docs/BLOCK-TEST.md)).
+
+### Tests
+
+| What | Where | Run with |
+| --- | --- | --- |
+| Adapters, against sample files for every agent (normal, corrupt, unknown records, incremental reads, status) | `src/core/adapters/*/*.test.ts`, `test/fixtures/` | `npm test` |
+| Run store, status rules, masking with planted fake keys, the read-only guard | `src/core/*.test.ts` | `npm test` |
+| Every theme meets WCAG AA contrast and keeps status colours distinguishable | `src/renderer/src/theme/contrast.test.ts` | `npm test` |
+| UI components, motion policy, multiviewer grid, settings logic | `src/renderer/**/*.test.ts(x)` | `npm test` |
+| The whole UI in a browser with demo data: navigation, palette, every grid size, settings, wizard, reduced motion | `e2e/` | `npm run test:e2e` |
+| The real Electron app: masking end to end, reduced motion, navigation and multiviewer, hidden-window throttling | `e2e-electron/` | `npm run test:electron` |
+
+CI runs the type check, the unit tests, the browser tests and a packaging check on Windows, macOS and Linux for every push and pull request, the Electron app tests on Windows and Linux, and the secret scan over the whole history. A tagged release runs the type check and unit tests again before it builds anything.
+
+## Development
 
 You need [Node.js](https://nodejs.org/) 24 and Git.
 
@@ -396,17 +615,55 @@ You need [Node.js](https://nodejs.org/) 24 and Git.
 git clone https://github.com/OWNER/agent-run-monitor.git
 cd agent-run-monitor
 npm ci
-npx install-electron
-npm run dev
+npx install-electron   # downloads Electron itself; npm ci does not run install scripts
+npm run dev            # the app with hot reload, reading your real session files (read-only)
 ```
 
-- `npx install-electron` downloads Electron itself; `npm ci` does not run install scripts.
-- `npm run dev` starts the app with hot reload. It reads your real agent session files, read-only.
-- `npm run dev:web` runs only the user interface in your browser at http://localhost:5317, with made-up demo runs and nothing from your disk.
-- `npm run dist` builds the installers for your operating system into `release/`. They are unsigned unless signing is set up (see `electron-builder.yml`).
-- If Electron starts as plain Node and no window opens, your shell has `ELECTRON_RUN_AS_NODE` set. Unset it first.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the app with hot reload |
+| `npm run dev:web` | Only the window, in your browser at http://localhost:5317, with made-up demo runs and nothing from your disk. The quickest way to work on the UI |
+| `npm test` | Unit and component tests (Vitest) |
+| `npm run test:e2e` | UI tests in Chrome against the demo |
+| `npm run test:electron` | Build, then test the real Electron app |
+| `npm run typecheck` | TypeScript check |
+| `npm run build` | Build into `out/` |
+| `npm run dist` | Build installers for your system into `release/` (unsigned unless signing is set up) |
+| `npm run scan-secrets` | Scan the files and the whole git history for secrets and personal paths |
+| `node scripts/simulate-live-runs.mjs` | Write synthetic, live Claude Code sessions into a folder, for testing without a real agent |
+| `node scripts/make-screenshots.mjs`, `node scripts/make-gif.mjs` | Regenerate the pictures on this page from the demo |
 
-The README pictures are made from the demo with `node scripts/make-screenshots.mjs` and `node scripts/make-gif.mjs`.
+**Demo URL options** (with `npm run dev:web`): `?scenario=demo|empty|firstrun|many` (`many` has 300 runs), `?live=0` to freeze the demo, `?battery=1` to act as if on battery.
+
+**Environment switches** for testing the real app without touching your own data:
+
+| Variable | Effect |
+| --- | --- |
+| `ARM_HOME` | Use this folder as the home folder when looking for agents |
+| `ARM_USER_DATA` | Keep settings in this folder instead of the normal one |
+| `ARM_OPEN_LAYOUT` | Open this saved multiviewer layout on start |
+| `ARM_E2E=1` | Test mode: no desktop notifications, no start-with-OS |
+
+If Electron starts as plain Node and no window opens, your shell has `ELECTRON_RUN_AS_NODE` set (VS Code terminals often do). Unset it first.
+
+### Releasing
+
+1. Update `version` in `package.json` and `CHANGELOG.md`, commit, and push a tag such as `v0.2.0` (it must match the version).
+2. The release workflow builds the installers on Windows, macOS and Linux and uploads them to a **draft** GitHub Release.
+3. On Windows it then runs the Smart App Control audit (`scripts/check-blocks.ps1` and `scripts/runtime-modules.mjs`) and attaches its report to the release. If signing is set up, any file of ours without a valid signature fails the release.
+4. Check the draft, then publish it.
+
+Signing is optional and driven by repository secrets and variables. On Windows: either a PFX certificate (secrets `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`) or Azure Artifact Signing (secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` and variables `AZURE_SIGN_ENDPOINT`, `AZURE_SIGN_ACCOUNT`, `AZURE_SIGN_PROFILE`, `AZURE_SIGN_PUBLISHER`), plus the variable `WIN_EXPECTED_PUBLISHER` that the audit checks signatures against. On macOS: secrets `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`. Without them the builds are unsigned and the audit only reports.
+
+If you publish your own fork, run `npm run set-repo -- <you>/agent-run-monitor` first so every link points at your repository.
+
+## Project status
+
+Version 0.1.0, not yet released.
+
+- **Claude Code** support is verified on a real installation. The other eleven agents are built from their published source code and tested with sample files written to match it; **Cursor** is experimental because it is closed source. Real-world reports help move them to "verified": see the [adapter request and format change forms](https://github.com/OWNER/agent-run-monitor/issues/new/choose).
+- **Builds are not code-signed yet.** Windows and macOS will warn the first time you open the app (see [Install](#install)).
+- **Next up:** Goose and Crush adapters, signed builds, and real-session fixtures for more agents.
 
 ## Contributing
 
