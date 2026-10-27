@@ -1,0 +1,112 @@
+name: Bug report
+description: Something in Agent Run Monitor does not work as it should.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        **Please don't paste session contents** (transcripts, rollouts, chat histories, database rows) or attach session files. They may contain your code, file paths and secrets, and anything you post here is public. If the structure of a file matters, describe record types and field names with the values removed.
+
+        Security problems should not be reported here. See the security policy instead.
+
+        If a run says "couldn't read this run" after an agent update, the **Format changed** template is a better fit.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: For example Windows 11 24H2, macOS 15.5, Ubuntu 24.04.
+      placeholder: Windows 11 24H2
+    validations:
+      required: false
+  - type: input
+    id: app-version
+    attributes:
+      label: Agent Run Monitor version
+      description: Shown in Settings, or in the installer file name.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Agent involved
+      description: Pick the agent whose runs show the problem, or "Not agent-specific".
+      options:
+        - Not agent-specific
+        - Claude Code
+        - Codex
+        - Gemini CLI
+        - Qwen Code
+        - Copilot (VS Code)
+        - Copilot CLI
+        - Aider
+        - Cursor
+        - Cline
+        - Roo Code
+        - Continue
+        - OpenCode
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: agent-version
+    attributes:
+      label: Agent version
+      description: The version of the agent, if one is involved (for example the output of `claude --version` or `codex --version`).
+      placeholder: "1.2.3"
+    validations:
+      required: false
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe what you saw. Include the exact status or message the app showed, if any.
+      placeholder: 'The run list shows a finished Codex run as "Stuck: no activity for 23 min".'
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: As exact as you can. If you can reproduce it in the browser demo (`npm run dev:web`), say so.
+      placeholder: |
+        1. Start a Codex session and let it finish.
+        2. Open Agent Run Monitor.
+        3. ...
+    validations:
+      required: false
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Settings that might matter (low-GPU mode, reduce motion, custom folders), screenshots with private details hidden, or terminal output with paths and contents removed.
+    validations:
+      required: false
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before you submit
+      options:
+        - label: I have not pasted session contents, code, secrets or private paths into this issue.
+          required: true
+        - label: I searched the existing issues for this problem.
+          required: false

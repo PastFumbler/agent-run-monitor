@@ -15,6 +15,7 @@ const FILES = [
   'README.md',
   'CONTRIBUTING.md',
   'SECURITY.md',
+  'CHANGELOG.md',
   'electron-builder.yml',
   'src/shared/project.ts',
   'docs/BLOCK-TEST.md',

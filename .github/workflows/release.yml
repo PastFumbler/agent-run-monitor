@@ -1,0 +1,347 @@
+# Release: on a pushed tag v*, build installers on Windows, macOS and Linux and publish them to a
+# DRAFT GitHub Release for that tag.
+#
+# How the release is assembled (one approach, end to end):
+#   1. `draft` checks that the tag equals "v" + package.json version and creates the draft release
+#      with `gh release create --draft` (so the three build jobs never race to create it).
+#   2. Each `build` job runs `electron-builder --publish always`. electron-builder.yml has
+#      `publish: { provider: github, releaseType: draft }`, so it uploads into that same draft.
+#   3. On Windows, scripts/runtime-modules.mjs and scripts/check-blocks.ps1 audit what was built
+#      for Smart App Control. Their reports are uploaded as a workflow artifact and attached to
+#      the draft. If the audit fails, the job fails and the draft is renamed "BLOCKED".
+#   4. A maintainer reviews the draft (and runs docs/BLOCK-TEST.md on a machine with Smart App
+#      Control on) and publishes it by hand. Nothing is public until then.
+#
+# Signing (all optional; without them the build is unsigned and the audit only reports):
+#   Windows, Azure Artifact Signing (preferred): secrets AZURE_TENANT_ID, AZURE_CLIENT_ID,
+#     AZURE_CLIENT_SECRET; variables AZURE_SIGN_ENDPOINT (e.g. https://eus.codesigning.azure.net),
+#     AZURE_SIGN_ACCOUNT, AZURE_SIGN_PROFILE (a Public Trust profile), AZURE_SIGN_PUBLISHER
+#     (the certificate subject CN, used as publisherName).
+#   Windows, certificate file: secrets WIN_CSC_LINK (base64 of the .pfx) and WIN_CSC_KEY_PASSWORD.
+#   Windows audit: variable WIN_EXPECTED_PUBLISHER, text that appears in the signing certificate's
+#     subject (defaults to AZURE_SIGN_PUBLISHER). Required once signing is configured.
+#   macOS: secrets CSC_LINK (base64 .p12) and CSC_KEY_PASSWORD for signing; APPLE_ID,
+#     APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID for notarisation.
+# When Windows signing is on, the build passes -c.forceCodeSigning=true, signs .dll and .node
+# files too (win.signExts in electron-builder.yml) and also signs the NSIS plug-in DLLs the
+# installer and uninstaller unpack to %TEMP% (electron-builder does not sign those), from both
+# the NSIS bundle and nsis-resources.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    name: create draft release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check the tag matches package.json
+        shell: bash
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version (expected v$version)."
+            exit 1
+          fi
+
+      - name: Create the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; electron-builder will add to it if it is a draft."
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft --verify-tag \
+              --title "Agent Run Monitor $GITHUB_REF_NAME" --generate-notes
+          fi
+
+  build:
+    name: build (${{ matrix.platform }})
+    needs: draft
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the Electron binary
+        run: npx install-electron
+
+      - name: Build the app
+        run: npm run build
+
+      - name: Decide on signing
+        id: signing
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGN_ENDPOINT: ${{ vars.AZURE_SIGN_ENDPOINT }}
+          AZURE_SIGN_ACCOUNT: ${{ vars.AZURE_SIGN_ACCOUNT }}
+          AZURE_SIGN_PROFILE: ${{ vars.AZURE_SIGN_PROFILE }}
+          AZURE_SIGN_PUBLISHER: ${{ vars.AZURE_SIGN_PUBLISHER }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+        run: |
+          mode=none
+          if [ "$PLATFORM" = win ]; then
+            if [ -n "$AZURE_TENANT_ID" ] && [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ] \
+              && [ -n "$AZURE_SIGN_ENDPOINT" ] && [ -n "$AZURE_SIGN_ACCOUNT" ] && [ -n "$AZURE_SIGN_PROFILE" ] && [ -n "$AZURE_SIGN_PUBLISHER" ]; then
+              mode=azure
+            elif [ -n "$WIN_CSC_LINK" ]; then
+              mode=pfx
+            fi
+          elif [ "$PLATFORM" = mac ] && [ -n "$CSC_LINK" ]; then
+            mode=apple
+            [ -n "$APPLE_ID" ] && mode=apple-notarize
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "Signing for $PLATFORM: $mode"
+
+      # ---- Windows -------------------------------------------------------------------------------
+
+      # electron-builder signs the installer, uninstaller, app exe, elevate.exe and (with signExts)
+      # every .dll/.node, but not the NSIS plug-ins that the installer and uninstaller unpack to
+      # %TEMP% and load. They come from two places: the NSIS compiler bundle's own Plugins folder
+      # (System.dll, nsExec.dll) and electron-builder's nsis-resources (StdUtils.dll, nsis7z.dll,
+      # WinShell.dll, ...). Sign copies of both and point electron-builder at them with
+      # ELECTRON_BUILDER_NSIS_DIR and ELECTRON_BUILDER_NSIS_RESOURCES_DIR.
+      # electron-builder.yml sets no `toolsets.nsis`, so the build uses the legacy NSIS 3.0.4.1
+      # bundle and nsis-resources 3.4.1, and the paths below are resolved the same way. If you set
+      # toolsets.nsis, pass that value to getMakeNsisPath / getNsisPluginsPath here as well.
+      - name: Sign the NSIS plug-ins
+        if: matrix.platform == 'win' && steps.signing.outputs.mode != 'none'
+        shell: pwsh
+        env:
+          MODE: ${{ steps.signing.outputs.mode }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGN_ENDPOINT: ${{ vars.AZURE_SIGN_ENDPOINT }}
+          AZURE_SIGN_ACCOUNT: ${{ vars.AZURE_SIGN_ACCOUNT }}
+          AZURE_SIGN_PROFILE: ${{ vars.AZURE_SIGN_PROFILE }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $resolved = node -e "const w = require('app-builder-lib/out/toolsets/windows'); Promise.all([w.getMakeNsisPath(undefined, undefined), w.getNsisPluginsPath(undefined, undefined)]).then(([m, p]) => console.log(JSON.stringify({ nsisDir: m.env && m.env.NSISDIR, plugins: p })))"
+          if ($LASTEXITCODE -ne 0) { throw 'could not resolve the NSIS folders from app-builder-lib' }
+          $resolved = $resolved | ConvertFrom-Json
+          if (-not $resolved.nsisDir -or -not (Test-Path (Join-Path $resolved.nsisDir 'Plugins'))) { throw "unexpected NSIS bundle layout: $($resolved.nsisDir)" }
+          if (-not (Test-Path $resolved.plugins)) { throw "NSIS plug-ins folder not found: $($resolved.plugins)" }
+          $nsisDir = Join-Path $env:RUNNER_TEMP 'nsis'
+          $resDir = Join-Path $env:RUNNER_TEMP 'nsis-resources'
+          foreach ($d in @($nsisDir, $resDir)) { if (Test-Path $d) { Remove-Item -Recurse -Force $d } }
+          Copy-Item -Recurse $resolved.nsisDir $nsisDir
+          New-Item -ItemType Directory -Force $resDir | Out-Null
+          Copy-Item -Recurse $resolved.plugins (Join-Path $resDir 'plugins')
+          $dlls = @(Get-ChildItem (Join-Path $nsisDir 'Plugins'), (Join-Path $resDir 'plugins') -Recurse -Filter *.dll)
+          if ($dlls.Count -eq 0) { throw 'no NSIS plug-in DLLs found to sign' }
+          Write-Host "Signing $($dlls.Count) NSIS plug-in DLLs"
+          if ($env:MODE -eq 'azure') {
+            Install-Module -Name TrustedSigning -MinimumVersion 0.5.0 -Force -Repository PSGallery -Scope CurrentUser
+            foreach ($d in $dlls) {
+              Invoke-TrustedSigning -Endpoint $env:AZURE_SIGN_ENDPOINT -CodeSigningAccountName $env:AZURE_SIGN_ACCOUNT `
+                -CertificateProfileName $env:AZURE_SIGN_PROFILE -TimestampRfc3161 'http://timestamp.acs.microsoft.com' `
+                -TimestampDigest SHA256 -FileDigest SHA256 -Files $d.FullName
+            }
+          } else {
+            $pfx = Join-Path $env:RUNNER_TEMP 'nsis-sign.pfx'
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WIN_CSC_LINK))
+            try {
+              $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfx, $env:WIN_CSC_KEY_PASSWORD)
+              foreach ($d in $dlls) {
+                $r = Set-AuthenticodeSignature -FilePath $d.FullName -Certificate $cert -HashAlgorithm SHA256 -TimestampServer 'http://timestamp.digicert.com'
+                if (-not $r.SignerCertificate) { throw "signing $($d.Name) failed: $($r.Status) $($r.StatusMessage)" }
+              }
+            } finally {
+              Remove-Item $pfx -Force -ErrorAction SilentlyContinue
+            }
+          }
+          # Every copy must now carry a signature that verifies on this runner, with a timestamp.
+          $bad = @($dlls | Where-Object { $s = Get-AuthenticodeSignature -LiteralPath $_.FullName; $s.Status -ne 'Valid' -or -not $s.TimeStamperCertificate })
+          if ($bad.Count) { throw "NSIS plug-ins not Valid and timestamped after signing: $(($bad | ForEach-Object { $_.FullName }) -join ', ')" }
+          "ELECTRON_BUILDER_NSIS_DIR=$nsisDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ELECTRON_BUILDER_NSIS_RESOURCES_DIR=$resDir" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Package and publish (Windows)
+        if: matrix.platform == 'win'
+        shell: bash
+        env:
+          MODE: ${{ steps.signing.outputs.mode }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGN_ENDPOINT: ${{ vars.AZURE_SIGN_ENDPOINT }}
+          AZURE_SIGN_ACCOUNT: ${{ vars.AZURE_SIGN_ACCOUNT }}
+          AZURE_SIGN_PROFILE: ${{ vars.AZURE_SIGN_PROFILE }}
+          AZURE_SIGN_PUBLISHER: ${{ vars.AZURE_SIGN_PUBLISHER }}
+        run: |
+          args=(--win --publish always)
+          case "$MODE" in
+            azure)
+              # signtoolOptions and azureSignOptions are mutually exclusive: drop the pfx variables.
+              unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
+              args+=(
+                "-c.win.azureSignOptions.publisherName=$AZURE_SIGN_PUBLISHER"
+                "-c.win.azureSignOptions.endpoint=$AZURE_SIGN_ENDPOINT"
+                "-c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGN_ACCOUNT"
+                "-c.win.azureSignOptions.certificateProfileName=$AZURE_SIGN_PROFILE"
+                -c.forceCodeSigning=true
+              )
+              ;;
+            pfx)
+              unset AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
+              args+=(-c.forceCodeSigning=true)
+              ;;
+            *)
+              unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET
+              ;;
+          esac
+          npx electron-builder "${args[@]}"
+
+      # Runtime pass first (it launches win-unpacked), then the static audit of the installer,
+      # the install it makes, the zip and win-unpacked, merged with the runtime report.
+      - name: Smart App Control check
+        id: sac
+        if: matrix.platform == 'win'
+        shell: powershell
+        env:
+          SIGNING_MODE: ${{ steps.signing.outputs.mode }}
+          EXPECTED_PUBLISHER: ${{ vars.WIN_EXPECTED_PUBLISHER || vars.AZURE_SIGN_PUBLISHER }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $dir = "release\$version"
+          $out = 'sac-report'
+          New-Item -ItemType Directory -Force $out | Out-Null
+          $signed = $env:SIGNING_MODE -ne 'none'
+          if ($signed -and -not $env:EXPECTED_PUBLISHER) {
+            throw 'Windows signing is configured but neither WIN_EXPECTED_PUBLISHER nor AZURE_SIGN_PUBLISHER is set: the audit needs the publisher name to check signatures against.'
+          }
+
+          $exe = Get-ChildItem "$dir\win-unpacked" -Filter *.exe | Where-Object { $_.Name -notlike 'Uninstall*' -and $_.Name -ne 'elevate.exe' } | Select-Object -First 1
+          node scripts/runtime-modules.mjs --exe $exe.FullName --out $out
+          if ($LASTEXITCODE -ne 0) { throw "runtime-modules.mjs could not run the app (exit $LASTEXITCODE)" }
+
+          $failed = $false
+          foreach ($arch in @('x64', 'arm64')) {
+            $unpacked = if ($arch -eq 'x64') { "$dir\win-unpacked" } else { "$dir\win-$arch-unpacked" }
+            if (-not (Test-Path $unpacked)) { continue }
+            $argv = @('-Unpacked', (Resolve-Path $unpacked).Path, '-Staging', "$env:RUNNER_TEMP\sac-$arch", '-ReportPath', "$out\check-blocks-$arch.md")
+            $inst = Get-ChildItem $dir -Filter "*setup*$arch*.exe" | Select-Object -First 1
+            if (-not $inst -and $arch -eq 'x64') { $inst = Get-ChildItem $dir -Filter '*setup*.exe' | Where-Object { $_.Name -notmatch 'arm64' } | Select-Object -First 1 }
+            if ($inst) { $argv += @('-Installer', $inst.FullName) }
+            $zip = Get-ChildItem $dir -Filter "*win-$arch.zip" | Select-Object -First 1
+            if ($zip) { $argv += @('-Zip', $zip.FullName) }
+            # An arm64 installer cannot run on this x64 runner: check its signature only.
+            if ($arch -ne 'x64') { $argv += '-NoInstall' }
+            if ($arch -eq 'x64' -and (Test-Path "$out\runtime-modules.json")) { $argv += @('-RuntimeReport', "$out\runtime-modules.json") }
+            if ($signed) { $argv += @('-SigningConfigured', '-ExpectedPublisher', $env:EXPECTED_PUBLISHER) }
+            & powershell -NoProfile -ExecutionPolicy Bypass -File scripts\check-blocks.ps1 @argv
+            if ($LASTEXITCODE -ne 0) { $failed = $true; Write-Host "::error::Smart App Control check failed for $arch (exit $LASTEXITCODE)" }
+          }
+          Get-ChildItem $out -Filter *.md | ForEach-Object { Get-Content $_.FullName -Raw | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+          if ($failed) { exit 1 }
+
+      - name: Upload the Smart App Control report
+        if: always() && matrix.platform == 'win'
+        uses: actions/upload-artifact@v7
+        with:
+          name: smart-app-control-report
+          path: sac-report/
+          if-no-files-found: warn
+
+      - name: Attach the Smart App Control report to the release
+        if: always() && matrix.platform == 'win'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(sac-report/*.md sac-report/*.json)
+          if [ ${#files[@]} -gt 0 ]; then
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          fi
+
+      # ---- macOS ---------------------------------------------------------------------------------
+
+      - name: Package and publish (macOS)
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          MODE: ${{ steps.signing.outputs.mode }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          args=(--mac --publish always)
+          case "$MODE" in
+            apple-notarize) args+=(-c.forceCodeSigning=true) ;;
+            apple)
+              unset APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+              args+=(-c.forceCodeSigning=true)
+              ;;
+            *)
+              # Unsigned: no keychain lookup and no notarisation (it needs a signed app).
+              unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+              export CSC_IDENTITY_AUTO_DISCOVERY=false
+              ;;
+          esac
+          npx electron-builder "${args[@]}"
+
+      # ---- Linux ---------------------------------------------------------------------------------
+
+      - name: Package and publish (Linux)
+        if: matrix.platform == 'linux'
+        run: npx electron-builder --linux --publish always
+
+      # ---- any platform --------------------------------------------------------------------------
+
+      # A failed build or Smart App Control check on any platform keeps the draft unpublishable
+      # at a glance. (A draft is never public, so this is a label, not a lock.)
+      - name: Mark the draft as blocked
+        if: failure()
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft \
+            --title "Agent Run Monitor $GITHUB_REF_NAME (BLOCKED: $PLATFORM build or check failed, see the workflow run)"

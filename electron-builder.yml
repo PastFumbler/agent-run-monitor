@@ -1,14 +1,20 @@
 # Installers for Windows, macOS and Linux. `npm run dist` builds for the current OS.
 #
 # Signing is driven by the environment and skipped when nothing is set:
-#   Windows, certificate file: CSC_LINK / WIN_CSC_LINK (+ CSC_KEY_PASSWORD / WIN_CSC_KEY_PASSWORD)
-#   Windows, Azure Trusted Signing: when AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET are
-#     set, the release workflow adds
+#   Windows, certificate file: WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD (CSC_LINK / CSC_KEY_PASSWORD
+#     also work locally; the release workflow passes only the WIN_ ones on Windows)
+#   Windows, Azure Artifact Signing (formerly Trusted Signing, the signing Microsoft recommends
+#     for Smart App Control): when AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET are set,
+#     .github/workflows/release.yml adds
+#       -c.win.azureSignOptions.publisherName=$AZURE_SIGN_PUBLISHER
 #       -c.win.azureSignOptions.endpoint=$AZURE_SIGN_ENDPOINT
 #       -c.win.azureSignOptions.codeSigningAccountName=$AZURE_SIGN_ACCOUNT
 #       -c.win.azureSignOptions.certificateProfileName=$AZURE_SIGN_PROFILE
 #     (a YAML file cannot make azureSignOptions conditional, and setting it without credentials
 #     would fail every unsigned local build)
+#   With either, the workflow also passes -c.forceCodeSigning=true and signs the NSIS plug-in
+#   DLLs (see release.yml), then scripts/check-blocks.ps1 fails the release if anything that
+#   Smart App Control evaluates is left unsigned (docs/BLOCK-TEST.md).
 #   macOS: CSC_LINK + CSC_KEY_PASSWORD for signing; APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and
 #     APPLE_TEAM_ID for notarisation
 # `signExts` only matters when a certificate is present; unsigned builds sign nothing.
@@ -26,10 +32,7 @@ files:
   - package.json
   - "!**/*.map"
 
-# sql.js reads its .wasm with fs.readFile, which Electron serves from inside app.asar, so no
-# asarUnpack entry is needed. If a future adapter passes the wasm path to a native API, add:
-# asarUnpack:
-#   - node_modules/sql.js/dist/*.wasm
+# No native modules and no unpacked files: SQLite comes from Node's built-in node:sqlite.
 asar: true
 
 forceCodeSigning: false
@@ -41,7 +44,10 @@ win:
       arch: [x64, arm64]
     - target: zip
       arch: [x64, arm64]
-  signExts: [".dll"]
+  # electron-builder signs only .exe by default. Smart App Control checks every DLL the app loads
+  # (Electron ships ffmpeg.dll, dxcompiler.dll, vulkan-1.dll... unsigned) and native .node modules
+  # are DLLs too, so sign both. d3dcompiler_47.dll is re-signed with our certificate, which is fine.
+  signExts: [".dll", ".node"]
   artifactName: agent-run-monitor-${version}-win-${arch}.${ext}
 
 nsis:

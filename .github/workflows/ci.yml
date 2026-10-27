@@ -1,0 +1,108 @@
+# Continuous integration: every push and pull request, on Windows, macOS and Linux.
+# Typecheck, unit tests (including the theme contrast test and the adapter fixture tests),
+# renderer end-to-end tests in Google Chrome, a production build, an unsigned unpacked package,
+# and the secret / private-path scan over the whole history.
+name: CI
+
+on:
+  # Branches only: a pushed release tag runs release.yml, not a second copy of CI.
+  push:
+    branches: ['**']
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    env:
+      CI: 'true'
+      # Never look for a signing identity in CI: dist:dir below must stay unsigned everywhere.
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Electron 45 no longer downloads its binary in a postinstall script.
+      - name: Download the Electron binary
+        run: npx install-electron
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests (vitest, includes theme contrast and adapter fixtures)
+        run: npm test
+
+      # playwright.config.ts uses channel 'chrome', the Google Chrome that GitHub's hosted images
+      # ship. Install it only if this runner image lacks it.
+      - name: Make sure Google Chrome is available
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Windows) test -f "/c/Program Files/Google/Chrome/Application/chrome.exe" && found=1 ;;
+            macOS)   test -d "/Applications/Google Chrome.app" && found=1 ;;
+            Linux)   command -v google-chrome >/dev/null 2>&1 && found=1 ;;
+          esac
+          if [ -n "${found:-}" ]; then
+            echo "Google Chrome is preinstalled"
+          else
+            echo "Google Chrome not found, installing it with Playwright"
+            npx playwright install --with-deps chrome
+          fi
+
+      - name: End-to-end tests (Playwright, renderer)
+        run: npx playwright test
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Production build
+        run: npm run build
+
+      # electron-builder --dir: packages the app for this OS without an installer, unsigned and
+      # without publishing, to prove packaging works on every platform.
+      - name: Package (unpacked, unsigned)
+        run: npm run dist:dir
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # The scan reads every commit, so it needs the full history.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Scan the tree and the history for secrets and private paths
+        run: node scripts/scan-secrets.mjs

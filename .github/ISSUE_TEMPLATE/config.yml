@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/OWNER/agent-run-monitor/security/advisories/new
+    about: Please report security problems privately, never in a public issue. See SECURITY.md.
+  - name: Contributing guide
+    url: https://github.com/OWNER/agent-run-monitor/blob/main/CONTRIBUTING.md
+    about: Development setup, tests, privacy rules and how to add a source adapter.

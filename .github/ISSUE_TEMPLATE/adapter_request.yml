@@ -1,0 +1,92 @@
+name: Adapter request
+description: Ask for support for a coding agent the app does not read yet.
+title: "[Adapter]: "
+labels: ["adapter request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        An adapter teaches the app to read one agent's session files. To build one we need to know where the agent stores its sessions and what the files look like **in structure**: file names, folders, record types and field names.
+
+        **Please don't paste session contents or attach session files.** They may contain your code, file paths and secrets. Replace every value with a placeholder such as `<string>`, `<number>` or `<timestamp>`.
+
+        The agent must keep a local record of its sessions. Agents that run only in the cloud, or that store sessions encrypted, cannot be supported.
+  - type: input
+    id: agent
+    attributes:
+      label: Agent name
+      placeholder: Example Agent
+    validations:
+      required: true
+  - type: input
+    id: homepage
+    attributes:
+      label: Homepage or source repository
+      description: A link to the agent's website, and its source code if it is open source.
+    validations:
+      required: true
+  - type: input
+    id: agent-version
+    attributes:
+      label: Agent version you looked at
+      placeholder: "2.4.0"
+    validations:
+      required: false
+  - type: textarea
+    id: locations
+    attributes:
+      label: Where it stores sessions, per OS
+      description: |
+        Use placeholders for your home folder (`~`, `%APPDATA%`, `$XDG_DATA_HOME`). Mention any environment variable that moves the folder. Leave out an OS you have not checked.
+      value: |
+        Windows:
+        macOS:
+        Linux:
+        Environment variable override (if any):
+    validations:
+      required: true
+  - type: dropdown
+    id: format
+    attributes:
+      label: File format
+      options:
+        - JSON Lines (one JSON record per line, appended)
+        - One JSON file per session
+        - SQLite database
+        - Markdown or plain text
+        - Other or not sure
+    validations:
+      required: true
+  - type: textarea
+    id: structure
+    attributes:
+      label: Sample structure, with all contents removed
+      description: |
+        Show the folder layout and one or two records with every value replaced by a placeholder. For SQLite, the table names and columns (the output of `.schema` is fine) without any rows.
+      render: text
+      placeholder: |
+        ~/.example-agent/
+          sessions/
+            <session-id>.jsonl
+
+        {"type": "user", "ts": "<timestamp>", "text": "<string>"}
+        {"type": "tool_call", "id": "<string>", "name": "<string>", "args": {"path": "<string>"}}
+        {"type": "tool_result", "id": "<string>", "ok": <bool>}
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: How can you tell a session's state?
+      description: Anything in the files that shows the agent is working, waiting for approval, finished or failed (record types, status fields, lock or pid files).
+    validations:
+      required: false
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to build this adapter myself (see "Adding a source adapter" in CONTRIBUTING.md).
+          required: false
+        - label: I have not pasted session contents, code, secrets or private paths into this issue.
+          required: true
