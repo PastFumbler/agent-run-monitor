@@ -27,7 +27,10 @@ import {
   stripRedacted,
   uriToPath,
 } from './common';
-import { DbTooLargeError, all, dbStamp, one, openSnapshot, parseJson, readOnce, tableNames, type Database, type DbStamp } from './sqlite';
+import { DbTooLargeError, all, dbStamp, one, openSnapshot, parseJson, readOnce, tableNames, type Database, type DbStamp, type SnapshotOptions } from '../../sqlite';
+
+/** How Cursor databases are snapshotted (see src/core/sqlite.ts): into tempDir, up to the default 2 GB. */
+export const dbOptions = (tempDir?: string): SnapshotOptions => ({ tempDir, label: 'This Cursor database' });
 
 export const NO_RECORDS = "No records this app recognises; the agent may have changed its format.";
 
@@ -65,7 +68,7 @@ function readWorkspaceDb(db: Database): Omit<WorkspaceInfo, 'folder'> {
   return info;
 }
 
-async function workspaceInfo(dir: string, since: number): Promise<WorkspaceInfo | undefined> {
+async function workspaceInfo(dir: string, since: number, tempDir: string | undefined): Promise<WorkspaceInfo | undefined> {
   let folder: string | undefined;
   try {
     const w = JSON.parse(await readFile(join(dir, 'workspace.json'), 'utf8'));
@@ -84,7 +87,7 @@ async function workspaceInfo(dir: string, since: number): Promise<WorkspaceInfo 
   const hit = wsCache.get(dbPath);
   if (hit && hit.key === stamp.key) return { folder, ...hit.info };
   try {
-    const info = await readOnce(dbPath, readWorkspaceDb);
+    const info = await readOnce(dbPath, readWorkspaceDb, dbOptions(tempDir));
     wsCache.set(dbPath, { key: stamp.key, info });
     return { folder, ...info };
   } catch {
@@ -101,6 +104,8 @@ interface ComposerEntry {
   workspaceId?: string;
   updatedAt?: number;
   isSubagent?: boolean;
+  /** The composer that started this sub-agent (subagentInfo.parentComposerId). */
+  parentId?: string;
 }
 
 interface Header {
@@ -110,6 +115,12 @@ interface Header {
   createdAt?: number;
   updatedAt?: number;
   isSubagent?: boolean;
+  parentId?: string;
+}
+
+/** A sub-agent composer names its parent in subagentInfo (headers, and possibly composerData). */
+function parentComposerId(o: Obj): string | undefined {
+  return isObj(o.subagentInfo) ? str(o.subagentInfo.parentComposerId) : undefined;
 }
 
 function headerFrom(h: Obj, extra: Obj = {}): Header {
@@ -121,6 +132,7 @@ function headerFrom(h: Obj, extra: Obj = {}): Header {
     createdAt: toMs(extra.createdAt ?? h.createdAt),
     updatedAt: toMs(extra.lastUpdatedAt ?? h.lastUpdatedAt),
     isSubagent: Boolean(extra.isSubagent ?? h.isSubagent),
+    parentId: parentComposerId(h),
   };
 }
 
@@ -164,7 +176,8 @@ function listComposers(db: Database): { entries: ComposerEntry[]; headers: Map<s
        CASE WHEN json_valid(t) THEN json_extract(t, '$.name') END AS name,
        CASE WHEN json_valid(t) THEN json_extract(t, '$.lastUpdatedAt') END AS lastUpdatedAt,
        CASE WHEN json_valid(t) THEN json_extract(t, '$.createdAt') END AS createdAt,
-       CASE WHEN json_valid(t) THEN json_extract(t, '$.gitWorktree.worktreePath') END AS wt
+       CASE WHEN json_valid(t) THEN json_extract(t, '$.gitWorktree.worktreePath') END AS wt,
+       CASE WHEN json_valid(t) THEN json_extract(t, '$.subagentInfo.parentComposerId') END AS parent
      FROM (SELECT key, CAST(value AS TEXT) AS t FROM cursorDiskKV WHERE key >= 'composerData:' AND key < 'composerData;')`,
   );
   const entries: ComposerEntry[] = [];
@@ -179,6 +192,7 @@ function listComposers(db: Database): { entries: ComposerEntry[]; headers: Map<s
       workspaceId: h.workspaceId,
       updatedAt: toMs(r.lastUpdatedAt) ?? h.updatedAt ?? toMs(r.createdAt) ?? h.createdAt,
       isSubagent: h.isSubagent,
+      parentId: str(r.parent) ?? h.parentId,
     });
   }
   return { entries, headers };
@@ -186,14 +200,14 @@ function listComposers(db: Database): { entries: ComposerEntry[]; headers: Map<s
 
 const globalCache = new Map<string, { key: string; entries?: ComposerEntry[]; error?: unknown }>();
 
-async function globalComposers(dbPath: string, stamp: DbStamp): Promise<ComposerEntry[]> {
+async function globalComposers(dbPath: string, stamp: DbStamp, tempDir: string | undefined): Promise<ComposerEntry[]> {
   const hit = globalCache.get(dbPath);
   if (hit && hit.key === stamp.key) {
     if (hit.entries) return hit.entries;
     throw hit.error; // same unreadable bytes as last time: don't load them again on every poll
   }
   try {
-    const snap = await openSnapshot(dbPath);
+    const snap = await openSnapshot(dbPath, dbOptions(tempDir));
     const { entries } = listComposers(snap.db);
     globalCache.set(dbPath, { key: snap.stamp.key, entries });
     return entries;
@@ -215,13 +229,13 @@ async function subdirs(dir: string): Promise<string[]> {
  * Lists the composers in one Cursor `User` folder, one SessionRef per composer (subId = composerId),
  * plus legacy chat-panel tabs. `seen` collects every composer id so other stores can skip duplicates.
  */
-export async function discoverUserDir(userDir: string, since: number, seen: Set<string>): Promise<SessionRef[]> {
+export async function discoverUserDir(userDir: string, since: number, seen: Set<string>, tempDir?: string): Promise<SessionRef[]> {
   const refs: SessionRef[] = [];
   const wsFolders = new Map<string, string>();
   const composerFolder = new Map<string, string>();
   const wsRoot = join(userDir, 'workspaceStorage');
   for (const id of await subdirs(wsRoot)) {
-    const info = await workspaceInfo(join(wsRoot, id), since);
+    const info = await workspaceInfo(join(wsRoot, id), since, tempDir);
     if (!info) continue;
     if (info.folder) wsFolders.set(id, info.folder);
     for (const cid of info.composerIds) if (info.folder) composerFolder.set(cid, info.folder);
@@ -251,7 +265,7 @@ export async function discoverUserDir(userDir: string, since: number, seen: Set<
   }
   let entries: ComposerEntry[];
   try {
-    entries = await globalComposers(dbPath, stamp);
+    entries = await globalComposers(dbPath, stamp, tempDir);
   } catch (e) {
     // Too large or unreadable: one placeholder run that explains why.
     if (since > 0 && stamp.mtimeMs < since) return refs;
@@ -275,7 +289,7 @@ export async function discoverUserDir(userDir: string, since: number, seen: Set<
       subId: c.id,
       mtimeMs,
       size: stamp.size + stamp.walSize,
-      hint: compact({ kind: 'composer', projectPath, project: projectPath ? projectNameOf(projectPath) : undefined, title: c.title, subagent: c.isSubagent ? '1' : undefined }),
+      hint: compact({ kind: 'composer', projectPath, project: projectPath ? projectNameOf(projectPath) : undefined, title: c.title, subagent: c.isSubagent ? '1' : undefined, parent: c.parentId }),
     });
   }
   return refs;
@@ -532,6 +546,12 @@ export function buildComposerRun(db: Database, ref: SessionRef): ParsedRun {
   run.startedAt = toMs(cd.createdAt);
   // Cursor's own chat name first (as its sidebar shows it); pushEvent falls back to the first prompt.
   run.title = realName(cd.name) ?? hint.title ?? '';
+  // A sub-agent's parent is another composer in the same database: link it by path + composer id.
+  const parent = hint.parent ?? parentComposerId(cd);
+  if (parent && parent !== id) {
+    run.parentPath = ref.path;
+    run.parentSubId = parent;
+  }
 
   const { bubbles, missing } = loadBubbles(db, id, cd);
   run.skipped += missing;
@@ -594,7 +614,7 @@ export async function parseFromDb(
 ): Promise<ParseState> {
   const stamp = await dbStamp(ref.path);
   if (prev && prev.extra.stamp === stamp.key) return prev;
-  const snap = await openSnapshot(ref.path, ctx.tempDir);
+  const snap = await openSnapshot(ref.path, dbOptions(ctx.tempDir));
   const st = freshState();
   st.run = build(snap.db, ref); // synchronous use of the snapshot (see openSnapshot)
   st.size = snap.stamp.size + snap.stamp.walSize;

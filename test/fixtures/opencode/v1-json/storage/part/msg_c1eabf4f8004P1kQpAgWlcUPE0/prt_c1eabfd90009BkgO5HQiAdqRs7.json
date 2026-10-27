@@ -1,0 +1,21 @@
+{
+  "id": "prt_c1eabfd90009BkgO5HQiAdqRs7",
+  "sessionID": "ses_3e154120fffehqoEpQu8qH1U19",
+  "messageID": "msg_c1eabf4f8004P1kQpAgWlcUPE0",
+  "type": "tool",
+  "callID": "toolu_014Ag8A09qkLNgNcpfP022LW",
+  "tool": "edit",
+  "state": {
+    "status": "error",
+    "input": {
+      "filePath": "/home/alex/code/todo-cli/todo_cli/cli.py",
+      "oldString": "def add(args):\n    store.add(args.titel)",
+      "newString": "def add(args):\n    store.add(args.title, priority=args.priority)"
+    },
+    "error": "Error: oldString not found in content",
+    "time": {
+      "start": 1770041114000,
+      "end": 1770041114012
+    }
+  }
+}

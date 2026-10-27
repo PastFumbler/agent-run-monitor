@@ -1,0 +1,1 @@
+[{"ts":1792904000000,"type":"say","say":"text","text":"Show overdue todos in red.","images":[]},{"ts":1792904000030,"type":"say","say":"api_req_started","text":"{\"apiProtocol\":\"anthropic\",\"tokensIn\":8100,\"tokensOut\":0,\"cacheWrites\":0,\"cacheReads\":0,\"cost\":0}"},{"ts":1792904001500,"type":"say","say":"text","text":"Checking how colours are 

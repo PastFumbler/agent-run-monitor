@@ -82,7 +82,7 @@ export function toSummary(ref: SessionRef, st: ParseState, now: number, mask: bo
     sourcePath: ref.path,
     readError: r.readError,
     currentTool: j.status === 'running' ? r.openTool?.name : undefined,
-    parentId: r.parentPath ? runId({ ...ref, path: r.parentPath, subId: undefined }) : undefined,
+    parentId: r.parentPath ? runId({ ...ref, path: r.parentPath, subId: r.parentSubId }) : undefined,
   };
 }
 

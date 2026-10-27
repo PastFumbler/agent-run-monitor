@@ -15,8 +15,8 @@ import { join } from 'node:path';
 import { emptyRun, freshState, type ParseContext, type ParseState, type ParsedRun, type SessionRef } from '../../adapter';
 import { isObj, pushEvent, textOf, toMs } from '../../events';
 import { cleanPrompt, cursorFilePath, cursorInputSummary, cursorToolKind, fileOpFor, jsonString, projectNameOf, stripRedacted, workspacePathFrom } from './common';
-import { NO_RECORDS, realName } from './composer';
-import { asText, dbStamp, one, parseJson, readOnce, tableNames, type Database } from './sqlite';
+import { asText, dbStamp, one, parseJson, readOnce, tableNames, type Database } from '../../sqlite';
+import { NO_RECORDS, dbOptions, realName } from './composer';
 
 type Obj = Record<string, unknown>;
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
@@ -316,7 +316,7 @@ export async function parseStore(ref: SessionRef, prev: ParseState | undefined, 
   }
   // Session databases are small: load, read and free at once instead of caching.
   const st = freshState();
-  st.run = await readOnce(ref.path, (db) => buildStoreRun(db, ref, metaJson, stamp.mtimeMs), ctx.tempDir);
+  st.run = await readOnce(ref.path, (db) => buildStoreRun(db, ref, metaJson, stamp.mtimeMs), dbOptions(ctx.tempDir));
   st.size = stamp.size + stamp.walSize;
   st.mtimeMs = ref.mtimeMs;
   st.extra = { stamp: key };

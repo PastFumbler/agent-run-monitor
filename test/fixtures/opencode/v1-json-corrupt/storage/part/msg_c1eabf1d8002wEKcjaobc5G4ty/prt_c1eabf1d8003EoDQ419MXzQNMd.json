@@ -1,0 +1,7 @@
+{
+  "id": "prt_c1eabf1d8003EoDQ419MXzQNMd",
+  "sessionID": "ses_3e154120fffehqoEpQu8qH1U19",
+  "messageID": "msg_c1eabf1d8002wEKcjaobc5G4ty",
+  "type": "text",
+  "text": "Add a --priority flag (low|normal|high) to the `todo add` command and show it in `todo list`."
+}

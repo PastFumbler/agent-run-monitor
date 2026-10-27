@@ -1,0 +1,72 @@
+{
+  "sessionId": "0e1f2a3b-4c5d-4e6f-8a7b-9c0d1e2f3a4b",
+  "title": "Untitled Session",
+  "workspaceDirectory": "C:\\Users\\alex\\todo-cli",
+  "history": [
+    {
+      "message": {
+        "role": "user",
+        "content": "list the files in todo_cli"
+      },
+      "contextItems": []
+    },
+    {
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "toolCalls": [
+          {
+            "id": "call_ls1",
+            "type": "function",
+            "function": {
+              "name": "ls",
+              "arguments": "{\"dirPath\":\"todo_cli\"}"
+            }
+          }
+        ]
+      },
+      "contextItems": [],
+      "toolCallStates": [
+        {
+          "toolCallId": "call_ls1",
+          "toolCall": {
+            "id": "call_ls1",
+            "type": "function",
+            "function": {
+              "name": "ls",
+              "arguments": "{\"dirPath\":\"todo_cli\"}"
+            }
+          },
+          "status": "done",
+          "parsedArgs": {
+            "dirPath": "todo_cli"
+          }
+        }
+      ]
+    },
+    {
+      "message": {
+        "role": "tool",
+        "content": "__init__.py\ncli.py\nstore.py",
+        "toolCallId": "call_ls1"
+      },
+      "contextItems": []
+    },
+    {
+      "message": {
+        "role": "assistant",
+        "content": "todo_cli contains __init__.py, cli.py and store.py."
+      },
+      "contextItems": []
+    }
+  ],
+  "usage": {
+    "totalCost": 0.0012,
+    "promptTokens": 410,
+    "completionTokens": 22,
+    "promptTokensDetails": {
+      "cachedTokens": 0,
+      "cacheWriteTokens": 0
+    }
+  }
+}

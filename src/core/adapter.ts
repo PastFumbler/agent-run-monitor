@@ -61,7 +61,13 @@ export interface ParsedRun {
   outputTokens?: number;
   /** Records the adapter did not recognise (counted, never fatal). */
   skipped: number;
+  /** The file the parent run (the session that started this sub-agent) lives in. */
   parentPath?: string;
+  /**
+   * The parent's SessionRef.subId, when the parent is one of several runs inside parentPath (a
+   * session in a shared SQLite database). Omit for parents that are a file of their own.
+   */
+  parentSubId?: string;
   /** Set when the file could not be read at all; the run shows as "couldn't read this run". */
   readError?: string;
   /** Running totals: events may be capped (see MAX_EVENTS) but these always count everything. */

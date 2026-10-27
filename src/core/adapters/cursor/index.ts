@@ -9,7 +9,7 @@
 //   2. cursor-agent CLI    ~/.cursor/chats/*/<id>/store.db, ~/.cursor/acp-sessions -> store.ts
 //   3. Agent transcripts   ~/.cursor/projects/<slug>/agent-transcripts/*.jsonl  -> transcript.ts
 // SQLite files (db + -wal, never -shm) are copied into a temp folder and the copy is opened
-// read-only with node:sqlite (see sqlite.ts); the originals are only ever stat'ed and read, never
+// read-only with node:sqlite (see src/core/sqlite.ts); the originals are only ever stat'ed and read, never
 // opened by a SQLite engine. Databases over 2 GB are skipped with a reason.
 
 import { stat } from 'node:fs/promises';
@@ -17,7 +17,7 @@ import path from 'node:path';
 import type { DiscoverContext, Env, ParseContext, ParseState, SessionRef, SourceAdapter } from '../../adapter';
 import { emptyRun, freshState } from '../../adapter';
 import { buildAiChatRun, buildComposerRun, discoverUserDir, parseFromDb } from './composer';
-import { closeAllSnapshots } from './sqlite';
+import { closeAllSnapshots } from '../../sqlite';
 import { discoverStore, parseStore } from './store';
 import { discoverTranscripts, parseTranscript } from './transcript';
 
@@ -63,7 +63,7 @@ async function discover(roots: string[], ctx: DiscoverContext): Promise<SessionR
   const kinds = await Promise.all(roots.map(classify));
   const seen = new Set<string>();
   const refs: SessionRef[] = [];
-  for (const k of kinds) if (k.user) refs.push(...(await discoverUserDir(k.user, since, seen).catch(() => [])));
+  for (const k of kinds) if (k.user) refs.push(...(await discoverUserDir(k.user, since, seen, ctx.tempDir).catch(() => [])));
   for (const k of kinds) if (k.dot) refs.push(...(await discoverStore(k.dot, since, seen).catch(() => [])));
   for (const k of kinds) if (k.dot) refs.push(...(await discoverTranscripts(k.dot, since, ctx.env, seen).catch(() => [])));
   return refs;

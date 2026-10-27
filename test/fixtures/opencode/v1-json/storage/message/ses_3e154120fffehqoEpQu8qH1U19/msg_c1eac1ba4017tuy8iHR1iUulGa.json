@@ -1,0 +1,34 @@
+{
+  "id": "msg_c1eac1ba4017tuy8iHR1iUulGa",
+  "sessionID": "ses_3e154120fffehqoEpQu8qH1U19",
+  "role": "assistant",
+  "time": {
+    "created": 1770041121700,
+    "completed": 1770041122200
+  },
+  "parentID": "msg_c1eac18840153d11YJ7TzjSpnT",
+  "modelID": "claude-sonnet-4-5",
+  "providerID": "anthropic",
+  "mode": "build",
+  "agent": "build",
+  "path": {
+    "cwd": "/home/alex/code/todo-cli",
+    "root": "/home/alex/code/todo-cli"
+  },
+  "cost": 0,
+  "tokens": {
+    "input": 0,
+    "output": 0,
+    "reasoning": 0,
+    "cache": {
+      "read": 0,
+      "write": 0
+    }
+  },
+  "error": {
+    "name": "MessageAbortedError",
+    "data": {
+      "message": "The operation was aborted."
+    }
+  }
+}

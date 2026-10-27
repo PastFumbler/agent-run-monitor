@@ -1,0 +1,10 @@
+{
+  "id": "prt_c1eac004c00bvKLJPJ3PGjluCI",
+  "sessionID": "ses_3e154120fffehqoEpQu8qH1U19",
+  "messageID": "msg_c1eabf4f8004P1kQpAgWlcUPE0",
+  "type": "patch",
+  "hash": "f4a6fd90af02a1e4a8a833a99bbef2e2f2d64048",
+  "files": [
+    "/home/alex/code/todo-cli/todo_cli/cli.py"
+  ]
+}

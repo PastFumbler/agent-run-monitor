@@ -1,0 +1,11 @@
+{
+  "id": "prt_c1eac149c013nLciQMHkTHDT5S",
+  "sessionID": "ses_3e154120fffehqoEpQu8qH1U19",
+  "messageID": "msg_c1eac11180112A4ukNvrZLt0rk",
+  "type": "text",
+  "text": "Added `--priority` to `todo add`; `todo list` now shows it in a new column. All 4 tests pass.",
+  "time": {
+    "start": 1770041119000,
+    "end": 1770041119900
+  }
+}

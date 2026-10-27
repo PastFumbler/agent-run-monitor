@@ -1,0 +1,17 @@
+{
+  "id": "ses_3e154120fffehqoEpQu8qH1U19",
+  "slug": "brave-otter",
+  "version": "1.1.65",
+  "projectID": "98ebcb82034fba541edd74d0cfc15a048c48098a",
+  "directory": "/home/alex/code/todo-cli",
+  "title": "Add priority flag to todo add",
+  "time": {
+    "created": 1770041110000,
+    "updated": 1770041122200
+  },
+  "summary": {
+    "additions": 1,
+    "deletions": 1,
+    "files": 1
+  }
+}

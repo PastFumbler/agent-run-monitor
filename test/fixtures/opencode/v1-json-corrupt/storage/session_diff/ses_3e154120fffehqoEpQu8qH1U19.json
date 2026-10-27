@@ -1,0 +1,10 @@
+[
+  {
+    "file": "todo_cli/cli.py",
+    "before": "import argparse\n\ndef add(args):\n    store.add(args.title)\n",
+    "after": "import argparse\n\ndef add(args):\n    store.add(args.title, priority=args.priority)\n",
+    "additions": 1,
+    "deletions": 1,
+    "status": "modified"
+  }
+]

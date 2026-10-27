@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "session_id": "1792907500000_p0w7e",
+  "source": "vscode",
+  "pid": 21844,
+  "started_at": "2026-10-25T05:51:40.000Z",
+  "status": "running",
+  "interactive": true,
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-5",
+  "cwd": "C:\\Users\\alex\\todo-cli",
+  "workspace_root": "C:\\Users\\alex\\todo-cli",
+  "enable_tools": true,
+  "enable_spawn": false,
+  "enable_teams": false,
+  "prompt": "Add due dates to todos.",
+  "metadata": {
+    "sessionHistoryOrigin": {
+      "mode": "user",
+      "version": "4.1.26"
+    },
+    "title": "Add due dates to todos."
+  },
+  "messages_path": "C:\\Users\\alex\\.cline\\data\\sessions\\1792907500000_p0w7e\\1792907500000_p0w7e.messages.json"
+}

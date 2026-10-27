@@ -1,0 +1,19 @@
+{
+  "id": "prt_c1eac1cd0019nuInlPxveUZOdb",
+  "sessionID": "ses_3e154120fffehqoEpQu8qH1U19",
+  "messageID": "msg_c1eac1ba4017tuy8iHR1iUulGa",
+  "type": "tool",
+  "callID": "toolu_01PM14Uz445tmjOgp9ko9r3h",
+  "tool": "read",
+  "state": {
+    "status": "error",
+    "input": {
+      "filePath": "/home/alex/code/todo-cli/todo_cli/store.py"
+    },
+    "error": "Tool execution aborted",
+    "time": {
+      "start": 1770041122000,
+      "end": 1770041122005
+    }
+  }
+}

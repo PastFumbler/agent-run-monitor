@@ -1,0 +1,11 @@
+{
+  "id": "98ebcb82034fba541edd74d0cfc15a048c48098a",
+  "worktree": "/home/alex/code/todo-cli",
+  "vcs": "git",
+  "sandboxes": [],
+  "time": {
+    "created": 1769954710000,
+    "updated": 1770041110000,
+    "initialized": 1769954710000
+  }
+}

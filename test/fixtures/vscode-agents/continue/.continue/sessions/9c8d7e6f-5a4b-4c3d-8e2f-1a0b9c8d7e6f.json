@@ -1,0 +1,14 @@
+{
+  "sessionId": "9c8d7e6f-5a4b-4c3d-8e2f-1a0b9c8d7e6f",
+  "title": "New Session",
+  "workspaceDirectory": "file:///c%3A/Users/alex/todo-cli",
+  "history": [
+    {
+      "message": {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Explain the done command."
+          }
+ 

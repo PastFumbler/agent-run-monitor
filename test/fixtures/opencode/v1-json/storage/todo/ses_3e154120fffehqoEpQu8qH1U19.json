@@ -1,0 +1,14 @@
+[
+  {
+    "id": "1",
+    "content": "Add --priority flag",
+    "status": "completed",
+    "priority": "high"
+  },
+  {
+    "id": "2",
+    "content": "Sort high priority first",
+    "status": "in_progress",
+    "priority": "medium"
+  }
+]

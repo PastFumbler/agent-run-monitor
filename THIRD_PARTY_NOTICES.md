@@ -79,7 +79,7 @@ All of these are under the MIT License. The copyright line of each comes from th
 | `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` | Multiviewer tile drag | MIT | Copyright (c) 2021, Claudéric Demers |
 | `@tanstack/react-virtual` (and `@tanstack/virtual-core`) | Virtualised lists | MIT | Copyright (c) 2021-present Tanner Linsley |
 | `chokidar` | File watching (main process) | MIT | Copyright (c) 2012 Paul Miller (https://paulmillr.com), Elan Shanker |
-| `sql.js` | Read-only SQLite in WebAssembly (main process) | MIT (bundles SQLite, which is in the public domain) | Copyright (c) 2017 sql.js authors |
+| SQLite (inside Node, used through `node:sqlite`) | Read-only access to copies of Cursor and OpenCode databases | Public domain | SQLite is dedicated to the public domain by its authors |
 | `electron` | Desktop shell | MIT | Copyright (c) Electron contributors. Electron bundles Chromium and other components under their own licences; packaged builds include Electron's `LICENSES.chromium.html`. |
 
 Development-only tools (TypeScript, Vite, electron-vite, electron-builder, Vitest, Playwright, jsdom,

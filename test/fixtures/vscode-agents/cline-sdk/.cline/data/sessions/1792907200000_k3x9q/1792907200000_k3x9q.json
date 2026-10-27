@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "session_id": "1792907200000_k3x9q",
+  "source": "vscode",
+  "pid": 21844,
+  "started_at": "2026-10-25T05:46:40.000Z",
+  "ended_at": "2026-10-25T05:47:44.100Z",
+  "exit_code": 1,
+  "status": "failed",
+  "interactive": true,
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-5",
+  "cwd": "C:\\Users\\alex\\todo-cli",
+  "workspace_root": "C:\\Users\\alex\\todo-cli",
+  "enable_tools": true,
+  "enable_spawn": false,
+  "enable_teams": false,
+  "prompt": "Add a `--json` flag to `todo list` that prints the items as JSON.",
+  "metadata": {
+    "sessionHistoryOrigin": {
+      "mode": "user",
+      "version": "4.1.26"
+    },
+    "title": "Add a `--json` flag to `todo list` that prints the items as JSON.",
+    "isFavorited": false,
+    "size": 14876,
+    "totalCost": 0.0455,
+    "tokensIn": 39700,
+    "tokensOut": 640,
+    "cacheWrites": 7300,
+    "cacheReads": 30900,
+    "modelId": "claude-sonnet-4-5",
+    "legacyTask": false
+  },
+  "messages_path": "C:\\Users\\alex\\.cline\\data\\sessions\\1792907200000_k3x9q\\1792907200000_k3x9q.messages.json"
+}

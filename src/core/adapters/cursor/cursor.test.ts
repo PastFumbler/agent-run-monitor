@@ -7,17 +7,17 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { DiscoverContext, Env, ParseContext, ParseState, SessionRef } from '../../adapter';
-import { safeParse } from '../../build';
+import { runId, safeParse, toSummary } from '../../build';
 import type { NewEvent } from '../../events';
 import { judgeStatus } from '../../status';
 import { adapter, closeAllSnapshots, defaultRoots } from './index';
 import { parseTimestampTag, uriToPath } from './common';
-import { limits } from './sqlite';
+import { fallbackTempRoot, limits } from '../../sqlite';
 
 const FIX = resolve(__dirname, '../../../../test/fixtures/cursor');
 const env: Env = { platform: 'linux', home: '/home/alex', vars: {} };
-/** Where discovery copies databases (it has no ParseContext.tempDir): see sqlite.ts. */
-const FALLBACK_TEMP = join(tmpdir(), `agent-run-monitor-cursor-${process.pid}`);
+/** Where discovery copies databases when DiscoverContext has no tempDir: see src/core/sqlite.ts. */
+const FALLBACK_TEMP = fallbackTempRoot;
 
 const ID_A = '3f6c1a2e-8b4d-4e7a-9c15-2d7e8f0a1b34'; // completed agent run
 const ID_B = '7a2e9d41-5c3b-4f86-a0e2-91c4b7d3e5f6'; // waiting for approval
@@ -390,6 +390,38 @@ describe('composer store', () => {
     } finally {
       live.close();
     }
+  });
+});
+
+describe('composer sub-agents', () => {
+  it('links a sub-agent composer to its parent composer in the same database', async () => {
+    const SUB = 'task-toolu_01SYNTHsubagent000000007'; // its header names ID_A as parentComposerId
+    const dir = join(work, 'subagents/User');
+    const file = join(work, 'subagents-kv.jsonl');
+    const sub = (id: string, extra: object) => [
+      { key: `composerData:${id}`, value: JSON.stringify({ _v: 13, createdAt: 1789999385000, lastUpdatedAt: 1789999388000, fullConversationHeadersOnly: [{ bubbleId: 's1', type: 1 }], ...extra }) },
+      { key: `bubbleId:${id}:s1`, value: JSON.stringify({ type: 1, bubbleId: 's1', text: 'Explore the test layout' }) },
+    ];
+    const rows = [
+      ...kv(join(FIX, 'composer/globalStorage.cursorDiskKV.jsonl')),
+      ...sub(SUB, {}),
+      // No header: the parent comes from composerData.subagentInfo.
+      ...sub('sub-2', { subagentInfo: { parentComposerId: ID_B, toolCallId: 'toolu_2' } }),
+    ];
+    writeFileSync(file, rows.map((r) => JSON.stringify(r)).join('\n'));
+    writeGlobalDb(join(dir, 'globalStorage/state.vscdb'), file);
+    const found = await adapter.discover([dir], dctx());
+    const byId = (id: string) => found.find((r) => r.subId === id)!;
+    expect(byId(SUB).hint).toMatchObject({ subagent: '1', parent: ID_A });
+    for (const [child, parent] of [[SUB, ID_A], ['sub-2', ID_B]]) {
+      const st = await safeParse(adapter, byId(child), undefined, ctx);
+      expect(st.run.parentPath).toBe(byId(child).path);
+      expect(st.run.parentSubId).toBe(parent);
+      expect(toSummary(byId(child), st, Date.now(), false).parentId).toBe(runId(byId(parent)));
+    }
+    const top = await safeParse(adapter, byId(ID_A), undefined, ctx);
+    expect(top.run.parentSubId).toBeUndefined();
+    expect(toSummary(byId(ID_A), top, Date.now(), false).parentId).toBeUndefined();
   });
 });
 

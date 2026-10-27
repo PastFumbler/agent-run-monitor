@@ -1,0 +1,1 @@
+{"id":"019a1f2e-3d4c-7b5a-9e8f-7a6b5c4d3e2f","number":1,"ts":1792903612100,"task":"Add a `todo clear --done` command that deletes completed items.","tokensIn":38200,"tokensOut":535,"cacheWrites":8600,"cacheReads":27700,"totalCost":0.055,"size":23110,"workspace":"C:\\Users\\alex\\todo-cli","mode":"code","apiConfigName":"default","status":"completed"}

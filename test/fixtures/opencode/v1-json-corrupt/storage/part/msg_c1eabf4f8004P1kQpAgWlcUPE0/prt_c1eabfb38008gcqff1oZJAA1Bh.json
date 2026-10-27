@@ -1,0 +1,24 @@
+{
+  "id": "prt_c1eabfb38008gcqff1oZJAA1Bh",
+  "sessionID": "ses_3e154120fffehqoEpQu8qH1U19",
+  "messageID": "msg_c1eabf4f8004P1kQpAgWlcUPE0",
+  "type": "tool",
+  "callID": "toolu_01ifPJbnuO34tYZtppr3OO2T",
+  "tool": "read",
+  "state": {
+    "status": "completed",
+    "input": {
+      "filePath": "/home/alex/code/todo-cli/todo_cli/cli.py"
+    },
+    "output": "<file>\n00001| import argparse\n00002| \n00003| def add(args):\n00004|     store.add(args.title)\n</file>",
+    "title": "todo_cli/cli.py",
+    "metadata": {
+      "preview": "import argparse\n\ndef add(args):\n    store.add(args.title)",
+      "truncated": false
+    },
+    "time": {
+      "start": 1770041113400,
+      "end": 1770041113435
+    }
+  }
+}
