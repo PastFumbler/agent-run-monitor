@@ -18,6 +18,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: 'open', keys: [['Enter']], label: 'Open selected run', group: 'Runs' },
   { id: 'pin', keys: [['p']], label: 'Pin or unpin run', group: 'Runs' },
   { id: 'search', keys: [['/']], label: 'Search runs', group: 'Runs' },
+  { id: 'openRuns', keys: [['g', 'a']], label: 'All runs (organise into folders)', group: 'Runs' },
   { id: 'view1', keys: [['1']], label: 'Activity view', group: 'Views' },
   { id: 'view2', keys: [['2']], label: 'Overview', group: 'Views' },
   { id: 'view3', keys: [['3']], label: 'Files view', group: 'Views' },

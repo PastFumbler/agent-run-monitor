@@ -3,8 +3,10 @@
 
 import { useEffect, useRef } from 'react';
 import { RUN_VIEWS } from '@shared/settings';
-import { openRunWithDefaultView, togglePin } from '../../store/actions';
+import { goBack, openRunWithDefaultView, showAllRuns, togglePin } from '../../store/actions';
 import { useStore } from '../../store/store';
+
+const RUNS_ROUTE_OFF = new Set(['ArrowLeft', 'ArrowRight', '[', ']', 'j', 'k', 'Enter', 'p', 'm', '/']);
 
 function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
@@ -38,8 +40,8 @@ export function useShortcuts(getNav: () => string[]): void {
           st.setOverlay('none');
         } else if (st.maximizedTile) {
           st.toggleMaximizeFocused();
-        } else if (st.route === 'settings') {
-          st.setRoute(st.lastRoute === 'multiview' ? 'multiview' : 'run');
+        } else if (st.route === 'settings' || st.route === 'runs') {
+          goBack();
         }
         return;
       }
@@ -51,7 +53,7 @@ export function useShortcuts(getNav: () => string[]): void {
       }
       if (mod) return;
 
-      // "g then m" opens the multiviewer.
+      // "g then m" opens the multiviewer, "g then a" the run list viewer.
       if (pendingG.current && Date.now() - pendingG.current < 1200) {
         pendingG.current = 0;
         if (key === 'm') {
@@ -59,11 +61,19 @@ export function useShortcuts(getNav: () => string[]): void {
           st.setRoute('multiview');
           return;
         }
+        if (key === 'a' && st.route !== 'wizard') {
+          e.preventDefault();
+          showAllRuns();
+          return;
+        }
       }
       if (key === 'g') {
         pendingG.current = Date.now();
         return;
       }
+
+      // The run list viewer hides the sidebar: its run-stepping keys, / (sidebar search) and p / m on the open run do nothing there.
+      if (st.route === 'runs' && RUNS_ROUTE_OFF.has(key)) return;
 
       const nav = navRef.current();
       const current = st.currentId;

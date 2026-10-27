@@ -1,6 +1,6 @@
 // Settings > Folders: create, rename and delete run folders. Folders are app-owned data in the
 // settings file (src/shared/folders.ts); agent files are never touched. Deleting a folder returns its
-// runs to Unfiled. Moving runs into folders happens from the run list (feature 4).
+// runs to Unfiled. Moving runs into folders happens in All runs (features/allruns).
 // Rename and delete confirm inline; Esc in the rename field cancels instead of leaving settings.
 
 import { useId, useMemo, useState, type FormEvent, type KeyboardEvent } from 'react';

@@ -217,10 +217,11 @@ Goose (`sessions/sessions.db`, source-verified) and Crush (per-project `.crush/c
 - Left: the **run list** with search, filter chips (agent, status), pinned runs, recent runs, and everything else grouped by day. Uses React Bits Animated List for insertions (reduced to a plain fade, or nothing, under the motion policy).
 - Centre: the **run view**: header with Status Mark, title, agent, project, previous/next arrows and a view switcher (React Bits Rubber Segment): Activity, Overview, Files, Tools, Timeline.
 - The **multiviewer** replaces the centre when two or more runs are selected.
+- **All runs** (the run list viewer, route `runs`) uses the full width: every run grouped by start time (Today, Yesterday, This week from Monday, Earlier this month, then one group per month), with its own status and folder filters, checkboxes (click, Shift-click for a range, a box per group) and "Move to folder" (any folder, Unfiled, or a new folder). Each row shows its folder. Opened from the sidebar, the palette or `g` then `a`; `showAllRuns(filter)` in `store/actions.ts` opens it with a status filter. Esc goes back.
 
 ### 5.2 Navigation
 
-- ← / → (or `[` / `]`): previous / next run in the current list order. `j` / `k`: move the list selection. Enter: open. `p`: pin. `1`–`5`: switch view. `m`: add to the multiviewer selection. `g` then `m`: open the multiviewer. `f`: maximise focused tile. `Esc`: close overlays, restore tiles. `Ctrl+K`: command palette. `?`: cheat sheet. `Ctrl+,`: settings.
+- ← / → (or `[` / `]`): previous / next run in the current list order. `j` / `k`: move the list selection. Enter: open. `p`: pin. `1`–`5`: switch view. `m`: add to the multiviewer selection. `g` then `m`: open the multiviewer. `g` then `a`: all runs. `f`: maximise focused tile. `Esc`: close overlays, restore tiles. `Ctrl+K`: command palette. `?`: cheat sheet. `Ctrl+,`: settings.
 - The command palette searches runs by project, agent, status and time ("codex failed yesterday" works: tokens match agent names, statuses and relative dates) and also runs commands (switch theme, open settings, toggle low-GPU mode).
 - The cheat sheet is always one key away and is linked from the status bar.
 

@@ -3,7 +3,7 @@
 import type { FolderOp, FolderResult } from '@shared/folders';
 import type { RunView, Settings } from '@shared/settings';
 import { getBackend } from '../backend';
-import { useStore } from './store';
+import { useStore, type RunsViewFilter } from './store';
 
 export async function updateSettings(patch: Partial<Settings>): Promise<Settings> {
   // Optimistic: the UI follows immediately; the backend's normalised answer wins.
@@ -50,6 +50,26 @@ export function openRunWithDefaultView(id: string): void {
   const s = useStore.getState();
   s.openRun(id);
   if (s.route !== 'run') s.setRoute('run');
+}
+
+/**
+ * Opens the run list viewer. `filter` replaces the given parts of its filters (e.g. the dashboard's
+ * "See all" passes `{ statuses: [status], folder: 'all' }`); without it the last filters stay.
+ */
+export function showAllRuns(filter?: Partial<RunsViewFilter>): void {
+  const st = useStore.getState();
+  if (filter) st.setRunsView(filter);
+  if (st.route !== 'runs') st.setRoute('runs');
+}
+
+/**
+ * Leaves a full-screen route (settings, the run list viewer): back to the multiviewer or the run list
+ * viewer when that is where the user came from, else to the run view.
+ */
+export function goBack(): void {
+  const st = useStore.getState();
+  const last = st.lastRoute;
+  st.setRoute((last === 'multiview' || last === 'runs') && last !== st.route ? last : 'run');
 }
 
 export function setView(v: RunView): void {

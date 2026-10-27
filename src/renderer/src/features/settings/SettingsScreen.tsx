@@ -11,7 +11,7 @@ import { HISTORY_CHOICES, REFRESH_CHOICES, RUN_VIEWS, type RunView, type Setting
 import { getBackend } from '../../backend';
 import { Icon } from '../../components/Icon';
 import { useMotionPolicy } from '../../motion/context';
-import { updateSettings } from '../../store/actions';
+import { goBack, updateSettings } from '../../store/actions';
 import { useStore } from '../../store/store';
 import { MOD } from '../shortcuts/shortcuts';
 import { ChoiceGroup, SwitchRow, ThemePicker } from './controls';
@@ -233,7 +233,6 @@ function AboutSection() {
 
 export function SettingsScreen() {
   const s = useStore((st) => st.settings);
-  const setRoute = useStore((st) => st.setRoute);
   const setView = useStore((st) => st.setView);
   const [active, setActive] = useState<SectionId>('sources');
   const contentRef = useRef<HTMLDivElement>(null);
@@ -286,7 +285,7 @@ export function SettingsScreen() {
   return (
     <div className="settings" data-testid="settings-screen" onKeyDown={stopAppShortcuts}>
       <header className="settings__header">
-        <button type="button" className="btn btn--ghost" onClick={() => setRoute('run')} title="Back to runs (Esc)">
+        <button type="button" className="btn btn--ghost" onClick={goBack} title="Back to runs (Esc)">
           <Icon icon={ArrowLeft02Icon} size={16} />
           Back to runs
         </button>

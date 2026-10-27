@@ -628,6 +628,14 @@ function plansFor(scenario: Scenario, rng: Rng): RunPlan[] {
     plans.push({ agent, status, age, size: scenario === 'many' ? rng.int(4, 10) : rng.int(4, 14) });
     i++;
   }
+  // A little older history (as with a longer history setting) so the run list viewer shows month
+  // groups. Set after the loop so the random draws, and so every other run, stay the same.
+  if (scenario === 'demo') {
+    const older = [33, 47, 61];
+    for (let j = ANCHORS.length, k = 0; j < plans.length && k < older.length; j++) {
+      if (plans[j].status === 'done') plans[j] = { ...plans[j], age: older[k++] * DAY };
+    }
+  }
   return plans;
 }
 

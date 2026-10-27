@@ -36,13 +36,18 @@ function readOpen(key: string, d: boolean): boolean {
   }
 }
 
+/** The last "focus the search box" request (store.searchFocusTick) the search box acted on. */
+let handledSearchTick = 0;
+
 export function SearchBox() {
   const text = useStore((s) => s.filters.text);
   const setFilters = useStore((s) => s.setFilters);
   const tick = useStore((s) => s.searchFocusTick);
   const ref = useRef<HTMLInputElement>(null);
+  // Focus once per request: not again when the sidebar remounts (e.g. back from All runs).
   useEffect(() => {
-    if (tick) {
+    if (tick !== handledSearchTick) {
+      handledSearchTick = tick;
       ref.current?.focus();
       ref.current?.select();
     }

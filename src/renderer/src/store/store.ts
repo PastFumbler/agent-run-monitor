@@ -7,13 +7,20 @@ import type { AppInfo, PowerState, RunsUpdate } from '@shared/ipc';
 import type { AgentId, RunDetail, RunStatus, RunSummary } from '@shared/schema';
 import { defaultSettings, type RunView, type Settings } from '@shared/settings';
 
-export type Route = 'run' | 'multiview' | 'settings' | 'wizard';
+export type Route = 'run' | 'runs' | 'multiview' | 'settings' | 'wizard';
 export type Overlay = 'none' | 'palette' | 'cheatsheet';
 
 export interface Filters {
   agents: AgentId[];
   statuses: RunStatus[];
   text: string;
+}
+
+/** The run list viewer's own filters (the sidebar's filters do not apply there). */
+export interface RunsViewFilter {
+  statuses: RunStatus[];
+  /** 'all', 'unfiled' or a folder id (folder ids start with "f_", so they never clash). */
+  folder: string;
 }
 
 export const RECENT_KEY = 'arm.recent';
@@ -71,6 +78,8 @@ export interface AppState {
   tileViews: Record<string, RunView>;
   /** Multiviewer: the page shown when more runs are picked than fit on one page (0-based). */
   multiPage: number;
+  /** Run list viewer ('runs' route): its status and folder filters. */
+  runsView: RunsViewFilter;
 
   settings: Settings;
   settingsLoaded: boolean;
@@ -102,6 +111,7 @@ export interface AppState {
   setMaximizedTile(id: string | null): void;
   setTileView(id: string, v: RunView): void;
   setMultiPage(page: number): void;
+  setRunsView(f: Partial<RunsViewFilter>): void;
   /** Moves a picked run to another position in the multiviewer order. */
   moveMulti(id: string, toIndex: number): void;
   setSettingsLocal(s: Settings): void;
@@ -137,6 +147,7 @@ export const useStore = create<AppState>()((set, get) => ({
   maximizedTile: null,
   tileViews: {},
   multiPage: 0,
+  runsView: { statuses: [], folder: 'all' },
   settings: defaultSettings(),
   settingsLoaded: false,
   power: null,
@@ -244,6 +255,9 @@ export const useStore = create<AppState>()((set, get) => ({
   setMultiPage(page) {
     set({ multiPage: Math.max(0, Math.floor(page)) });
   },
+  setRunsView(f) {
+    set({ runsView: { ...get().runsView, ...f } });
+  },
   moveMulti(id, toIndex) {
     const cur = get().multi;
     const from = cur.indexOf(id);
@@ -292,6 +306,7 @@ export function resetStore(): void {
     maximizedTile: null,
     tileViews: {},
     multiPage: 0,
+    runsView: { statuses: [], folder: 'all' },
     settings: defaultSettings(),
     settingsLoaded: false,
     power: null,

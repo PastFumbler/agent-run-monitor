@@ -3,7 +3,7 @@
 // and overlays.
 
 import { useEffect, useRef } from 'react';
-import { Settings02Icon, CommandIcon } from '@hugeicons/core-free-icons';
+import { Settings02Icon, CommandIcon, ListViewIcon } from '@hugeicons/core-free-icons';
 import { getBackend } from './backend';
 import { Icon } from './components/Icon';
 import { CommandPalette } from './features/palette/CommandPalette';
@@ -18,8 +18,8 @@ import { useRunListModel } from './store/selectors';
 import { useStore } from './store/store';
 import { applyLook } from './theme/applyTheme';
 import { RouteView } from './views/RouteView';
-import { openRunWithDefaultView } from './store/actions';
-import { MOD } from './features/shortcuts/shortcuts';
+import { openRunWithDefaultView, showAllRuns } from './store/actions';
+import { MOD, shortcutText } from './features/shortcuts/shortcuts';
 import { openStartupLayoutWhenReady } from './features/multiview/layouts';
 import { OpenMultiviewButton } from './features/multiview/OpenMultiviewButton';
 
@@ -91,7 +91,8 @@ function Shell() {
       <a className="skip-link" href="#main">
         Skip to run
       </a>
-      {route !== 'wizard' ? (
+      {/* The wizard and the run list viewer use the full width. */}
+      {route !== 'wizard' && route !== 'runs' ? (
         <aside className="sidebar" aria-label="Runs">
           <div className="sidebar__top">
             <div className="brand">
@@ -111,6 +112,16 @@ function Shell() {
                   onClick={() => setOverlay('palette')}
                 >
                   <Icon icon={CommandIcon} />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--icon btn--ghost"
+                  aria-label="All runs"
+                  title={`All runs: organise into folders (${shortcutText('openRuns')})`}
+                  onClick={() => showAllRuns()}
+                  data-testid="open-all-runs"
+                >
+                  <Icon icon={ListViewIcon} />
                 </button>
                 <button
                   type="button"

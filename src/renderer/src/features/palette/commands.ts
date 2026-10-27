@@ -2,7 +2,7 @@
 
 import { THEME_IDS, type TriState } from '@shared/settings';
 import { THEMES } from '../../theme/themes';
-import { updateSettings } from '../../store/actions';
+import { showAllRuns, updateSettings } from '../../store/actions';
 import { useStore } from '../../store/store';
 import { shortcutText } from '../shortcuts/shortcuts';
 
@@ -21,6 +21,13 @@ export function getCommands(): Command[] {
   const s = st.settings;
   const cmds: Command[] = [
     { id: 'open-settings', label: 'Open settings', keywords: 'preferences options configure', shortcut: shortcutText('settings'), run: () => st.setRoute('settings') },
+    {
+      id: 'open-all-runs',
+      label: 'Show all runs',
+      keywords: 'list organise organize folders move select viewer history',
+      shortcut: shortcutText('openRuns'),
+      run: () => showAllRuns(),
+    },
     { id: 'open-multiview', label: 'Open the multiviewer', keywords: 'grid tiles multi view compare', shortcut: shortcutText('openMulti'), run: () => st.setRoute('multiview') },
     { id: 'show-shortcuts', label: 'Show keyboard shortcuts', keywords: 'keys cheat sheet help hotkeys', shortcut: '?', run: () => st.setOverlay('cheatsheet') },
     {
@@ -48,7 +55,16 @@ export function getCommands(): Command[] {
       run: () => void updateSettings({ fakeProgress: !s.fakeProgress }),
     },
     { id: 'clear-filters', label: 'Clear run filters', keywords: 'reset filters search chips', run: () => st.clearFilters() },
-    { id: 'focus-search', label: 'Search runs in the sidebar', keywords: 'find filter search', shortcut: '/', run: () => st.focusSearch() },
+    {
+      id: 'focus-search',
+      label: 'Search runs in the sidebar',
+      keywords: 'find filter search',
+      shortcut: '/',
+      run: () => {
+        if (st.route === 'runs') st.setRoute('run'); // All runs hides the sidebar
+        st.focusSearch();
+      },
+    },
   ];
   for (const id of THEME_IDS) {
     const t = THEMES[id];

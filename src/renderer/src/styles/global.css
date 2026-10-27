@@ -286,7 +286,8 @@ pre,
   height: 100%;
 }
 
-.app[data-route='wizard'] {
+.app[data-route='wizard'],
+.app[data-route='runs'] {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     'main'

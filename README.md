@@ -325,6 +325,7 @@ Press `?` at any time for the list of shortcuts (it is also linked from the stat
 | `5` | Timeline view |
 | `m` | Add or remove run from the multiviewer |
 | `g` then `m` | Open the multiviewer |
+| `g` then `a` | All runs (organise into folders) |
 | `f` | Maximise focused tile |
 | `←` or `→` (in the multiviewer) | Focus the previous or next tile |
 | `1` to `5` (in the multiviewer) | Switch the view of the focused tile |
@@ -335,6 +336,10 @@ Press `?` at any time for the list of shortcuts (it is also linked from the stat
 | `Esc` | Close overlays, restore tiles |
 
 Shortcuts are ignored while you type in a text box.
+
+### All runs and folders
+
+The list button at the top of the sidebar (or `g` then `a`, or "Show all runs" in the command palette) opens **All runs**: every run on one full-width page, grouped by when it started: Today, Yesterday, This week, Earlier this month, then one group per month. Each row shows the folder the run is in. Tick runs (click a row or its box, Shift-click to select a range, or tick a group's box for the whole group), then **Move to folder** to put them in a folder, take them out (Unfiled) or create a new folder for them. Filter by status or folder at the top. **Open** shows a run; `Esc` goes back. Folders are kept in the app's own settings, never in agent files.
 
 ### Multiviewer
 

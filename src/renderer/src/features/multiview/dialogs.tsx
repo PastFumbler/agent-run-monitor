@@ -20,7 +20,7 @@ import { cleanLayoutName, deleteLayout, LAYOUT_NAME_MAX, openLayout, saveLayout 
 const MAX_RESULTS = 50;
 
 /** Keeps the app's single-key shortcuts (f, m, PageDown…) from firing behind a dialog. */
-function KeyFence({ children }: { children: ReactNode }) {
+export function KeyFence({ children }: { children: ReactNode }) {
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key !== 'Escape' && e.key !== 'Tab') e.stopPropagation();
   };
