@@ -97,7 +97,7 @@ linux:
     - deb
   artifactName: agent-run-monitor-${version}-linux-${arch}.${ext}
 
-# Owner and repo come from package.json "repository" (currently OWNER/agent-run-monitor);
+# Owner and repo come from package.json "repository" (currently PastFumbler/agent-run-monitor);
 # `npm run set-repo -- <owner>/<repo>` rewrites that, so nothing here needs editing.
 publish:
   provider: github

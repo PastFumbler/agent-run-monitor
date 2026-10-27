@@ -86,7 +86,7 @@ $t0 = Get-Date
 
 Download **through a web browser** (not `curl` or `gh`; SAC blocks some file types only when
 they come from the internet [S10]), from the release page
-<https://github.com/OWNER/agent-run-monitor/releases>, so the files carry the Mark of the Web like
+<https://github.com/PastFumbler/agent-run-monitor/releases>, so the files carry the Mark of the Web like
 a real user's download:
 
 - the installer, `agent-run-monitor-<version>-setup-<arch>.exe`

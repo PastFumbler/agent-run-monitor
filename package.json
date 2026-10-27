@@ -5,13 +5,13 @@
   "description": "A local, read-only desktop monitor for coding-agent runs: Claude Code, Codex, Gemini CLI, Copilot, Aider, Cursor and more.",
   "license": "MIT",
   "author": "Agent Run Monitor contributors",
-  "homepage": "https://github.com/OWNER/agent-run-monitor",
+  "homepage": "https://github.com/PastFumbler/agent-run-monitor",
   "repository": {
     "type": "git",
-    "url": "https://github.com/OWNER/agent-run-monitor.git"
+    "url": "https://github.com/PastFumbler/agent-run-monitor.git"
   },
   "bugs": {
-    "url": "https://github.com/OWNER/agent-run-monitor/issues"
+    "url": "https://github.com/PastFumbler/agent-run-monitor/issues"
   },
   "main": "out/main/index.js",
   "type": "module",

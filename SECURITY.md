@@ -8,7 +8,7 @@ Agent Run Monitor reads files that can contain private source code, command outp
 
 Report it privately through GitHub's private vulnerability reporting:
 
-1. Go to https://github.com/OWNER/agent-run-monitor/security/advisories/new
+1. Go to https://github.com/PastFumbler/agent-run-monitor/security/advisories/new
    (or open the repository's **Security** tab and choose **Report a vulnerability**).
 2. Describe the problem, the version of the app and your OS, and the steps to reproduce it.
 3. If a session file is needed to trigger the problem, build a minimal **synthetic** one by hand. Do not send real session files; they may contain your code and secrets.

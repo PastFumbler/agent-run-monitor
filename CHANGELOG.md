@@ -50,5 +50,5 @@ The first public release.
 
 - What was tested for this release, the GPU and CPU numbers, and what could not be verified (Smart App Control enforcement, macOS and Linux installs, agents other than Claude Code on real data) are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
-[Unreleased]: https://github.com/OWNER/agent-run-monitor/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/OWNER/agent-run-monitor/releases/tag/v0.1.0
+[Unreleased]: https://github.com/PastFumbler/agent-run-monitor/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/PastFumbler/agent-run-monitor/releases/tag/v0.1.0

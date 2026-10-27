@@ -26,7 +26,7 @@ You need:
 Then:
 
 ```sh
-git clone https://github.com/OWNER/agent-run-monitor.git
+git clone https://github.com/PastFumbler/agent-run-monitor.git
 cd agent-run-monitor
 npm ci
 npx install-electron
@@ -409,7 +409,7 @@ Incremental parsing (for append-only formats)
 
 ## Reporting a changed format
 
-If a run shows "couldn't read this run", or a run looks wrong after you updated an agent, the agent has probably changed its format. Please open a **[Format changed](https://github.com/OWNER/agent-run-monitor/issues/new?template=format_changed.yml)** issue with:
+If a run shows "couldn't read this run", or a run looks wrong after you updated an agent, the agent has probably changed its format. Please open a **[Format changed](https://github.com/PastFumbler/agent-run-monitor/issues/new?template=format_changed.yml)** issue with:
 
 - the agent and its version, and your OS;
 - the exact message the app shows;
@@ -417,7 +417,7 @@ If a run shows "couldn't read this run", or a run looks wrong after you updated 
 
 Please do not attach session files or paste their contents: they contain your code, your paths and possibly secrets. A shape like `{"type": "turn_end", "payload": {"status": "<string>", "usage": {"input": <n>}}}` is all we need.
 
-To request support for an agent the app does not know yet, use the **[Adapter request](https://github.com/OWNER/agent-run-monitor/issues/new?template=adapter_request.yml)** template.
+To request support for an agent the app does not know yet, use the **[Adapter request](https://github.com/PastFumbler/agent-run-monitor/issues/new?template=adapter_request.yml)** template.
 
 ## Pull requests
 

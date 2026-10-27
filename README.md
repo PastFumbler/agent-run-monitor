@@ -1,7 +1,7 @@
 # Agent Run Monitor
 
-[![CI](https://github.com/OWNER/agent-run-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/agent-run-monitor/actions/workflows/ci.yml)
-[![Latest release](https://img.shields.io/github/v/release/OWNER/agent-run-monitor?display_name=tag&sort=semver)](https://github.com/OWNER/agent-run-monitor/releases/latest)
+[![CI](https://github.com/PastFumbler/agent-run-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/PastFumbler/agent-run-monitor/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/PastFumbler/agent-run-monitor?display_name=tag&sort=semver)](https://github.com/PastFumbler/agent-run-monitor/releases/latest)
 [![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue.svg)](LICENSE)
 ![Platforms: Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
 
@@ -26,7 +26,7 @@ All pictures on this page come from the app's built-in demo, which uses made-up 
 
 ## Quick start
 
-1. Download the installer for your system from the [releases page](https://github.com/OWNER/agent-run-monitor/releases/latest) (Windows `setup-x64.exe`, macOS `.dmg`, Linux `.AppImage` or `.deb`). Details: [Install](#install).
+1. Download the installer for your system from the [releases page](https://github.com/PastFumbler/agent-run-monitor/releases/latest) (Windows `setup-x64.exe`, macOS `.dmg`, Linux `.AppImage` or `.deb`). Details: [Install](#install).
 2. Start **Agent Run Monitor**. The setup wizard finds your agents and shows what it found.
 3. Click **Open my latest run**. Start a session in any supported agent and it appears in the list within seconds.
 
@@ -125,7 +125,7 @@ If a file can't be understood (for example after an agent changes its format), t
 
 ## Install
 
-Download the latest version from the [releases page](https://github.com/OWNER/agent-run-monitor/releases).
+Download the latest version from the [releases page](https://github.com/PastFumbler/agent-run-monitor/releases).
 
 ### Windows
 
@@ -395,7 +395,7 @@ Work through this list:
 6. **VS Code Copilot?** See [VS Code Copilot chats don't appear](#vs-code-copilot-chats-dont-appear).
 7. **Permissions.** The app needs permission to read the folders. On macOS, if your projects are in Documents, Desktop or Downloads, macOS may ask whether the app may access that folder; allow it (or later in System Settings > Privacy & Security > Files and Folders). On Linux, check that the folders belong to your user.
 8. **Give it a moment.** With a very large history, the first scan can take a few seconds. Runs appear as they are read.
-9. **Still stuck?** [Open a bug report](https://github.com/OWNER/agent-run-monitor/issues/new?template=bug_report.yml). Say which agent and version, your operating system, and what Settings > Sources shows for that agent. **Never paste session contents or attach session files**: they can contain your code, file paths and secrets.
+9. **Still stuck?** [Open a bug report](https://github.com/PastFumbler/agent-run-monitor/issues/new?template=bug_report.yml). Say which agent and version, your operating system, and what Settings > Sources shows for that agent. **Never paste session contents or attach session files**: they can contain your code, file paths and secrets.
 
 ### VS Code Copilot chats don't appear
 
@@ -416,7 +416,7 @@ This means the app found the file but could not understand it. The reason is sho
 
 Nothing on disk was changed. The rest of the app keeps working.
 
-If many runs from one agent show this after an update, please [report a changed format](https://github.com/OWNER/agent-run-monitor/issues/new?template=format_changed.yml). The form asks for the agent, its version and the message on the card. Describe only the *structure* (record types and field names, with every value replaced by a placeholder such as `<string>`). **Do not paste session contents or attach session files.**
+If many runs from one agent show this after an update, please [report a changed format](https://github.com/PastFumbler/agent-run-monitor/issues/new?template=format_changed.yml). The form asks for the agent, its version and the message on the card. Describe only the *structure* (record types and field names, with every value replaced by a placeholder such as `<string>`). **Do not paste session contents or attach session files.**
 
 ### The app uses a lot of GPU or CPU
 
@@ -478,7 +478,7 @@ The app is built with Electron, which includes its own copy of Chromium. That is
 Tauri was the first choice. It couldn't be built on the development machine (no C++ toolchain, and no administrator rights to install one), and every part of the app had to be tested there. Electron needs only Node.js, which also makes it easy to add an agent: adapters are plain TypeScript. The full reasoning is in [docs/PLAN.md](docs/PLAN.md#2-stack-and-why-electron-rather-than-tauri).
 
 **My agent isn't supported. Can I add it?**
-Yes. An adapter is one small folder of TypeScript plus a test fixture. [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-source-adapter) walks through it, or [open an adapter request](https://github.com/OWNER/agent-run-monitor/issues/new?template=adapter_request.yml).
+Yes. An adapter is one small folder of TypeScript plus a test fixture. [CONTRIBUTING.md](CONTRIBUTING.md#adding-a-source-adapter) walks through it, or [open an adapter request](https://github.com/PastFumbler/agent-run-monitor/issues/new?template=adapter_request.yml).
 
 ## Code overview
 
@@ -612,7 +612,7 @@ CI runs the type check, the unit tests, the browser tests and a packaging check 
 You need [Node.js](https://nodejs.org/) 24 and Git.
 
 ```sh
-git clone https://github.com/OWNER/agent-run-monitor.git
+git clone https://github.com/PastFumbler/agent-run-monitor.git
 cd agent-run-monitor
 npm ci
 npx install-electron   # downloads Electron itself; npm ci does not run install scripts
@@ -661,7 +661,7 @@ If you publish your own fork, run `npm run set-repo -- <you>/agent-run-monitor` 
 
 Version 0.1.0, not yet released.
 
-- **Claude Code** support is verified on a real installation. The other eleven agents are built from their published source code and tested with sample files written to match it; **Cursor** is experimental because it is closed source. Real-world reports help move them to "verified": see the [adapter request and format change forms](https://github.com/OWNER/agent-run-monitor/issues/new/choose).
+- **Claude Code** support is verified on a real installation. The other eleven agents are built from their published source code and tested with sample files written to match it; **Cursor** is experimental because it is closed source. Real-world reports help move them to "verified": see the [adapter request and format change forms](https://github.com/PastFumbler/agent-run-monitor/issues/new/choose).
 - **Builds are not code-signed yet.** Windows and macOS will warn the first time you open the app (see [Install](#install)).
 - **Next up:** Goose and Crush adapters, signed builds, and real-session fixtures for more agents.
 
