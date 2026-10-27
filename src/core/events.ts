@@ -3,6 +3,7 @@
 
 import type { EventKind, FileOp, RunEvent, ToolKind } from '@shared/schema';
 import type { ParsedRun } from './adapter';
+import { addUsage, cleanUsage } from './usage';
 
 /** The newest events kept in memory per run. Older ones are counted, not kept. */
 export const MAX_EVENTS = 5000;
@@ -16,9 +17,16 @@ export function clip(text: string, max = MAX_TEXT): string {
   return `${text.slice(0, max)}\n… (${text.length - max} more characters)`;
 }
 
-/** Adds an event to the run, keeping tallies and the changed-files table current. */
+/**
+ * Adds an event to the run, keeping tallies and the changed-files table current. An event's
+ * `usage` is added to the run's token totals here, so adapters must not add it again.
+ */
 export function pushEvent(run: ParsedRun, e: NewEvent): void {
   const event: NewEvent = { ...e, text: clip(e.text ?? '') };
+  const usage = event.usage && cleanUsage(event.usage);
+  if (usage) addUsage(run, (event.usage = usage), event.ts);
+  else delete event.usage;
+  if (event.kind === 'reasoning' && !event.placeholder && event.text.trim()) run.hasReasoning = true;
   run.events.push(event);
   run.tally.events++;
   if (event.kind === 'user' || event.kind === 'assistant') run.tally.messages++;

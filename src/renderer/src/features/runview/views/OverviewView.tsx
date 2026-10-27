@@ -2,7 +2,8 @@
 // "Couldn't read this run" card for unreadable runs (never a crash).
 
 import { FolderOpenIcon, HelpCircleIcon } from '@hugeicons/core-free-icons';
-import { AGENT_NAMES, STATUS_LABELS, type RunSummary } from '@shared/schema';
+import { AGENT_NAMES, STATUS_LABELS, type RunSummary, type TokenUsage } from '@shared/schema';
+import { totalTokens } from '@shared/usage';
 import { Icon } from '../../../components/Icon';
 import { StatusBadge } from '../../../components/StatusBadge';
 import { formatDuration, formatTime } from '../../../lib/time';
@@ -26,7 +27,7 @@ export function OverviewView({ detail, compact }: RunViewProps) {
   // Ids must be unique when several tiles show an Overview at once.
   const uid = useId();
   const ids = { readerror: `${uid}-readerror`, status: `${uid}-status`, parent: `${uid}-parent`, subruns: `${uid}-subruns` };
-  const tokens = (s.counts.inputTokens ?? 0) + (s.counts.outputTokens ?? 0);
+  const tokens = totalTokens(s.usage);
 
   const stats: { label: string; value: number }[] = [
     { label: 'Events', value: s.counts.events },
@@ -35,7 +36,7 @@ export function OverviewView({ detail, compact }: RunViewProps) {
     { label: 'Errors', value: s.counts.errors },
     { label: 'Files changed', value: s.counts.filesChanged },
   ];
-  if (s.counts.inputTokens !== undefined || s.counts.outputTokens !== undefined) stats.push({ label: 'Tokens', value: tokens });
+  if (tokens !== undefined) stats.push({ label: 'Tokens', value: tokens });
 
   return (
     <div className="overview" data-testid="view-overview">
@@ -106,12 +107,10 @@ export function OverviewView({ detail, compact }: RunViewProps) {
           <dd>{formatTime(s.updatedAt, timeFormat, now)}</dd>
           <dt>Duration</dt>
           <dd>{formatDuration(Math.max(0, s.updatedAt - s.startedAt))}</dd>
-          {s.counts.inputTokens !== undefined ? (
+          {s.status !== 'unreadable' ? (
             <>
               <dt>Tokens</dt>
-              <dd>
-                {(s.counts.inputTokens ?? 0).toLocaleString()} in · {(s.counts.outputTokens ?? 0).toLocaleString()} out
-              </dd>
+              <dd data-testid="overview-tokens">{usageText(s.usage)}</dd>
             </>
           ) : null}
           <dt>Source file</dt>
@@ -176,4 +175,19 @@ function defaultDetail(status: string): string {
     default:
       return '';
   }
+}
+
+/** "1,200 in · 340 out · 18,000 cache read": only the parts the source reports, never a made-up 0. */
+function usageText(u: TokenUsage | undefined): string {
+  if (totalTokens(u) === undefined) return 'Not reported';
+  const parts: [number | undefined, string][] = [
+    [u!.input, 'in'],
+    [u!.output, 'out'],
+    [u!.cacheRead, 'cache read'],
+    [u!.cacheWrite, 'cache write'],
+  ];
+  return parts
+    .filter(([n]) => n !== undefined)
+    .map(([n, label]) => `${n!.toLocaleString()} ${label}`)
+    .join(' · ');
 }

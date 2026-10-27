@@ -127,8 +127,16 @@ describe('aider parse', () => {
     expect(r.startedAt).toBe(new Date(2026, 2, 14, 9, 12, 5).getTime());
     expect(r.events.every((e) => e.ts === r.startedAt)).toBe(true);
     expect(kinds(s1)).toEqual({ system: 20, user: 2, assistant: 4, tool_call: 4, tool_result: 4, file_change: 2, error: 2 });
-    expect(r.inputTokens).toBe(3100 + 3600 + 4000 + 4400);
-    expect(r.outputTokens).toBe(412 + 38 + 120 + 160);
+    // As Aider prints them (rounded above 1000); no cache figures printed, so none reported.
+    expect(r.usage).toMatchObject({ input: 3100 + 3600 + 4000 + 4400, output: 412 + 38 + 120 + 160 });
+    expect(r.usage!.cacheRead).toBeUndefined();
+    expect(r.events.filter((e) => e.usage).map((e) => e.text.slice(0, 13))).toEqual(['Tokens: 3.1k ', 'Tokens: 3.6k ', 'Tokens: 4.0k ', 'Tokens: 4.4k ']);
+    // The two applied edits, from their SEARCH/REPLACE blocks; the failed block is not a change.
+    expect(r.changes!.map((c) => [c.filePath, c.op, typeof c.linesAdded, !!c.diff])).toEqual([
+      ['todo/cli.py', 'edit', 'number', true],
+      ['tests/test_cli.py', 'edit', 'number', true],
+    ]);
+    expect(r.changes![0].diff!.startsWith('@@\n')).toBe(true);
     expect(Object.keys(r.files).sort()).toEqual(['tests/test_cli.py', 'todo/cli.py']);
     expect(r.turn).toBe('completed');
     expect(r.openTool).toBeUndefined();
@@ -159,8 +167,7 @@ describe('aider parse', () => {
     expect(r.events.find((e) => e.kind === 'reasoning')?.text).toMatch(/^The loader calls json\.load/);
     expect(r.events.find((e) => e.kind === 'assistant')?.text).not.toContain('thinking-content');
     expect(r.events.find((e) => e.text.startsWith('Tokens: 4.4k'))?.text).toContain('\nCost: $0.03 message');
-    expect(r.inputTokens).toBe(4400);
-    expect(r.outputTokens).toBe(1100);
+    expect(r.usage).toMatchObject({ input: 4400, output: 1100, cacheWrite: 2400, cacheRead: 1800 });
     expect(r.files['todo/storage.py'].ops).toEqual(['edit']);
     expect(r.turn).toBe('error');
     expect(r.turnDetail).toBe('The API provider is not able to authenticate you. Check your API key.');
@@ -254,7 +261,7 @@ describe('aider parse: edge cases found in review', () => {
     );
     expect(r.events.filter((e) => e.kind === 'user').map((e) => e.text)).toEqual(['write a func', 'now something else']);
     expect(r.events.filter((e) => e.kind === 'assistant').map((e) => e.text)).toEqual(['Here:\n\n```python\ndef f():', 'Sure, done.']);
-    expect(r.inputTokens).toBe(1000);
+    expect(r.usage).toMatchObject({ input: 1000, output: 10 });
     expect(r.turn).toBe('completed');
   });
 
@@ -320,10 +327,11 @@ describe('aider incremental parse', () => {
       expect(third.run.events).toEqual(full.run.events);
       expect(third.run.tally).toEqual(full.run.tally);
       expect(third.run.files).toEqual(full.run.files);
-      expect([third.run.turn, third.run.turnDetail, third.run.inputTokens, third.run.title]).toEqual([
+      expect([third.run.turn, third.run.turnDetail, third.run.usage, third.run.changes, third.run.title]).toEqual([
         full.run.turn,
         full.run.turnDetail,
-        full.run.inputTokens,
+        full.run.usage,
+        full.run.changes,
         full.run.title,
       ]);
     }

@@ -7,6 +7,7 @@ import {
   AGENT_IDS,
   RUN_STATUSES,
   type AgentId,
+  type CodeChange,
   type FileChangeSummary,
   type FileOp,
   type RunCounts,
@@ -14,9 +15,12 @@ import {
   type RunEvent,
   type RunStatus,
   type RunSummary,
+  type RunUsage,
+  type TokenUsage,
   type ToolCallSummary,
   type ToolKind,
 } from '@shared/schema';
+import { USAGE_FIELDS, dayKey } from '@shared/usage';
 import { Rng } from './prng';
 
 const MIN = 60_000;
@@ -218,6 +222,36 @@ const READ_ERRORS = [
   'The file is locked by another program; will retry.',
 ];
 
+// What each made-up agent's records hold, mirroring the real sources (see docs/PLAN.md 3.2):
+// Cursor rarely records tokens, so its demo runs report none; only some sources split out the
+// prompt cache; Copilot in VS Code names edited files without the replaced text; Claude Code
+// stores most thinking without its text.
+const NO_USAGE: ReadonlySet<AgentId> = new Set(['cursor']);
+const CACHE_READ: ReadonlySet<AgentId> = new Set(['claude-code', 'codex', 'opencode', 'cline', 'roo-code', 'copilot-cli', 'gemini-cli', 'qwen-code', 'aider']);
+const CACHE_WRITE: ReadonlySet<AgentId> = new Set(['claude-code', 'opencode', 'cline', 'roo-code', 'copilot-cli', 'aider']);
+const NO_DIFF: ReadonlySet<AgentId> = new Set(['copilot-vscode']);
+const HIDDEN_THINKING: ReadonlySet<AgentId> = new Set(['claude-code']);
+
+/** Made-up code lines per language, for the demo's diffs. */
+const CODE: Record<DemoProject['lang'], string[]> = {
+  ts: ['const ttl = options.ttl ?? 300;', 'if (!input) return null;', 'return items.filter((t) => !t.done);', 'export function parseArgs(argv: string[]) {', '  const flags = new Map<string, string>();', '}', '// Keep the old flag working for one release.', "logger.debug('cache miss', key);", 'const due = args.due ? new Date(args.due) : undefined;', 'items.sort((a, b) => a.order - b.order);'],
+  py: ['def get_forecast(city: str) -> dict:', '    if city not in CITIES:', '        raise HTTPException(status_code=404)', '    return cache.get(key) or fetch(city)', 'CACHE_TTL = 600', '# Keep the old route working for one release.', '    units = request.args.get("units", "metric")', 'from app.cache import cache'],
+  rs: ['pub fn render(post: &Post) -> String {', '    let mut out = String::new();', '    out.push_str(&post.title);', '}', 'let minutes = words / 200 + 1;', '// Keep the old feed path for one release.', 'use crate::markdown::to_html;'],
+  go: ['func (s *Server) Shorten(w http.ResponseWriter, r *http.Request) {', '	if url == "" {', '		http.Error(w, "missing url", http.StatusBadRequest)', '	}', '	code := s.store.Next()', '// Keep the old handler for one release.', 'return nil'],
+  c: ['static int score(const Board *b) {', '    int total = 0;', '    for (int i = 0; i < 64; i++) total += value[b->sq[i]];', '    return total;', '}', '/* Keep the old evaluator for one release. */', '#include "board.h"'],
+  rb: ['def scale(factor)', '  ingredients.map { |i| i.scale(factor) }', 'end', '  validates :title, presence: true', '# Keep the old route for one release.', "  render json: recipe"],
+};
+
+/** A unified-diff style text with made-up lines, matching the given counts. */
+function fakeDiff(rng: Rng, lang: DemoProject['lang'], op: FileOp, added: number, removed: number): string {
+  const pool = CODE[lang];
+  const lines = (n: number, mark: string) => Array.from({ length: n }, () => mark + rng.pick(pool));
+  if (op === 'create') return [`@@ -0,0 +1,${added} @@`, ...lines(added, '+')].join('\n');
+  if (op === 'delete') return [`@@ -1,${removed} +0,0 @@`, ...lines(removed, '-')].join('\n');
+  const at = rng.int(4, 120);
+  return [`@@ -${at},${removed + 3} +${at},${added + 3} @@`, ...lines(2, ' '), ...lines(removed, '-'), ...lines(added, '+'), ...lines(1, ' ')].join('\n');
+}
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const fill = (tpl: string, v: Record<string, string>) => tpl.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? k);
 
@@ -230,8 +264,8 @@ export interface DemoRun {
   keepAlive?: boolean;
   /** Open tool call id when a tool is running. */
   openCallId?: string;
-  tokensIn: number;
-  tokensOut: number;
+  /** Edits, oldest first (RunDetail.changes). */
+  changes: CodeChange[];
 }
 
 function sourcePathFor(agent: AgentId, project: DemoProject, rng: Rng, startedAt: number): string {
@@ -281,11 +315,22 @@ export class EventWriter {
 
   private push(e: Omit<RunEvent, 'seq'>): RunEvent {
     const ev: RunEvent = { seq: this.run.events.length, ...e };
+    const usage = this.usageFor(ev);
+    if (usage) ev.usage = usage;
     this.run.events.push(ev);
-    const tokens = Math.ceil(ev.text.length / 4) + 40;
-    if (ev.kind === 'assistant' || ev.kind === 'reasoning' || ev.kind === 'tool_call') this.run.tokensOut += tokens;
-    else this.run.tokensIn += tokens * 6;
     return ev;
+  }
+
+  /** Made-up tokens for one model message: the context grows as the run goes on. */
+  private usageFor(ev: RunEvent): TokenUsage | undefined {
+    const agent = this.run.summary.agent;
+    if (NO_USAGE.has(agent) || (ev.kind !== 'assistant' && ev.kind !== 'reasoning' && ev.kind !== 'tool_call')) return undefined;
+    const output = Math.ceil(ev.text.length / 4) + 40;
+    const context = 1800 + this.run.events.length * 260;
+    if (!CACHE_READ.has(agent)) return { input: context, output };
+    const fresh = Math.round(context * 0.08);
+    const write = CACHE_WRITE.has(agent) ? Math.round(context * 0.05) : undefined;
+    return { input: fresh, output, cacheRead: context - fresh - (write ?? 0), cacheWrite: write };
   }
 
   private vars(file?: string): Record<string, string> {
@@ -296,6 +341,9 @@ export class EventWriter {
     return this.push({ kind: 'user', text, ts });
   }
   reasoning(ts: number) {
+    if (HIDDEN_THINKING.has(this.run.summary.agent) && this.rng.chance(0.75)) {
+      return this.push({ kind: 'reasoning', text: `Thinking (${this.rng.float(0.8, 9).toFixed(1)} s, text not stored)`, ts, placeholder: true });
+    }
     const a = fill(this.rng.pick(THOUGHTS), this.vars());
     const b = this.rng.chance(0.5) ? ` ${fill(this.rng.pick(THOUGHTS), this.vars())}` : '';
     return this.push({ kind: 'reasoning', text: a + b, ts });
@@ -320,6 +368,7 @@ export class EventWriter {
     let output: string;
     let filePath: string | undefined;
     let fileOp: FileOp | undefined;
+    let lines: { added: number; removed: number } | undefined;
     const fail = opts.fail ?? false;
     switch (kind) {
       case 'read':
@@ -341,9 +390,10 @@ export class EventWriter {
         filePath = create ? file.replace(/(\.\w+)$/, '_extra$1') : file;
         input = filePath;
         fileOp = create ? 'create' : this.rng.chance(0.05) ? 'delete' : 'edit';
+        lines = this.editLines(fileOp);
         output = fail
           ? 'Error: old_string not found in file. The file may have changed since it was read.'
-          : `Applied ${plural(this.rng.int(1, 6), 'change')} to ${filePath} (+${this.rng.int(1, 40)} -${this.rng.int(0, 20)})`;
+          : `Applied ${plural(this.rng.int(1, 6), 'change')} to ${filePath} (+${lines.added} -${lines.removed})`;
         break;
       }
       case 'run': {
@@ -378,14 +428,40 @@ export class EventWriter {
       return callId;
     }
     const dur = opts.durationMs ?? (kind === 'run' ? this.rng.int(800, 40_000) : this.rng.int(40, 1500));
-    this.result(callId, name, kind, ts + dur, dur, output, fail, filePath, fileOp);
+    this.result(callId, name, kind, ts + dur, dur, output, fail, filePath, fileOp, lines);
     return callId;
   }
 
-  result(callId: string, name: string, kind: ToolKind, ts: number, durationMs: number, text: string, fail: boolean, filePath?: string, fileOp?: FileOp) {
+  private editLines(op: FileOp): { added: number; removed: number } {
+    if (op === 'create') return { added: this.rng.int(6, 30), removed: 0 };
+    if (op === 'delete') return { added: 0, removed: this.rng.int(5, 40) };
+    return { added: this.rng.int(1, 12), removed: this.rng.int(0, 6) };
+  }
+
+  result(
+    callId: string,
+    name: string,
+    kind: ToolKind,
+    ts: number,
+    durationMs: number,
+    text: string,
+    fail: boolean,
+    filePath?: string,
+    fileOp?: FileOp,
+    lines?: { added: number; removed: number },
+  ) {
     this.push({ kind: 'tool_result', text, ts, toolName: name, toolCallId: callId, toolKind: kind, isError: fail || undefined, durationMs });
     if (kind === 'edit' && !fail && filePath) {
-      this.push({ kind: 'file_change', text: `${fileOp === 'create' ? 'Created' : fileOp === 'delete' ? 'Deleted' : 'Edited'} ${filePath}`, ts, filePath, fileOp: fileOp ?? 'edit' });
+      const op = fileOp ?? 'edit';
+      this.push({ kind: 'file_change', text: `${op === 'create' ? 'Created' : op === 'delete' ? 'Deleted' : 'Edited'} ${filePath}`, ts, filePath, fileOp: op });
+      const change: CodeChange = { ts, filePath, op, toolCallId: callId };
+      if (!NO_DIFF.has(this.run.summary.agent)) {
+        const n = lines ?? this.editLines(op);
+        change.linesAdded = n.added;
+        change.linesRemoved = n.removed;
+        change.diff = fakeDiff(this.rng, this.project.lang, op, n.added, n.removed);
+      }
+      this.run.changes.push(change);
     }
   }
 
@@ -428,6 +504,21 @@ export class EventWriter {
   }
 }
 
+/** Usage totals and per-day buckets from the events' per-message usage, like the main process. */
+export function usageOf(events: RunEvent[]): RunUsage | undefined {
+  let total: RunUsage | undefined;
+  const add = (into: TokenUsage, u: TokenUsage) => {
+    for (const k of USAGE_FIELDS) if (u[k] !== undefined) into[k] = (into[k] ?? 0) + u[k]!;
+  };
+  for (const e of events) {
+    if (!e.usage) continue;
+    total ??= { byDay: {} };
+    add(total, e.usage);
+    if (e.ts) add((total.byDay![dayKey(e.ts)] ??= {}), e.usage);
+  }
+  return total;
+}
+
 export function countsOf(run: DemoRun): RunCounts {
   const c: RunCounts = { events: run.events.length, messages: 0, toolCalls: 0, errors: 0, filesChanged: 0 };
   const files = new Set<string>();
@@ -438,10 +529,6 @@ export function countsOf(run: DemoRun): RunCounts {
     if (e.kind === 'file_change' && e.filePath) files.add(e.filePath);
   }
   c.filesChanged = files.size;
-  if (run.events.length) {
-    c.inputTokens = run.tokensIn;
-    c.outputTokens = run.tokensOut;
-  }
   return c;
 }
 
@@ -478,11 +565,15 @@ export function detailOf(run: DemoRun, limit = 2000): RunDetail {
     totalEvents: run.events.length,
     files: [...files.values()],
     tools,
+    changes: run.changes.slice(-limit).map((c) => ({ ...c })),
+    totalChanges: run.changes.length,
   };
 }
 
 export function refreshSummary(run: DemoRun): void {
   run.summary.counts = countsOf(run);
+  run.summary.usage = usageOf(run.events);
+  run.summary.hasReasoning = run.events.some((e) => e.kind === 'reasoning' && !e.placeholder);
 }
 
 interface RunPlan {
@@ -577,7 +668,7 @@ export function makeRun(plan: RunPlan, rng: Rng, now: number, existing: DemoRun[
     summary.parentId = existing[plan.parent].summary.id;
     summary.title = `Sub-agent: ${rng.pick(['explore the test helpers', 'check for unused exports', 'review the diff for mistakes'])}`;
   }
-  const run: DemoRun = { summary, events: [], live: !!plan.live, keepAlive: plan.keepAlive, tokensIn: 0, tokensOut: 0 };
+  const run: DemoRun = { summary, events: [], live: !!plan.live, keepAlive: plan.keepAlive, changes: [] };
 
   if (plan.status === 'unreadable') {
     const reason = rng.pick(READ_ERRORS);
@@ -630,6 +721,7 @@ export function makeRun(plan: RunPlan, rng: Rng, now: number, existing: DemoRun[
       break;
   }
   for (const e of run.events) if (e.ts !== undefined && e.ts > end) e.ts = end;
+  for (const c of run.changes) if (c.ts !== undefined && c.ts > end) c.ts = end;
   refreshSummary(run);
   return run;
 }

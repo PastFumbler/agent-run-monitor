@@ -15,6 +15,7 @@
 
 import type { FileOp } from '@shared/schema';
 import { ev, type ParsedRun, type TurnState } from '../../adapter';
+import { pushChange, type DiffText } from '../../changes';
 import { pushEvent, type NewEvent } from '../../events';
 import { extractEdits } from './edits';
 import {
@@ -55,6 +56,7 @@ interface PendingEdit {
   id: string;
   path: string;
   op: FileOp;
+  diff?: DiffText;
 }
 
 /** Everything the parser carries between lines. Plain data only (stored in ParseState.extra). */
@@ -380,7 +382,7 @@ export class SessionParser {
     s.lastAssistant = text;
     for (const e of extractEdits(text, s.editFormat)) {
       const id = this.nextId();
-      s.pendingEdits.push({ id, path: e.path, op: e.op });
+      s.pendingEdits.push({ id, path: e.path, op: e.op, diff: e.diff });
       const label = e.blocks > 1 ? `${e.path} (${e.blocks} blocks)` : e.path;
       this.push(ev('tool_call', label, { toolName: 'edit', toolKind: 'edit', toolCallId: id }));
     }
@@ -432,9 +434,11 @@ export class SessionParser {
       this.push(ev('system', text));
     };
     if ((m = TOKENS.exec(t))) {
-      this.run.inputTokens = (this.run.inputTokens ?? 0) + tokenCount(m[1]);
-      this.run.outputTokens = (this.run.outputTokens ?? 0) + tokenCount(m[4]);
-      sys();
+      // One line per reply, kept as Aider prints it ("sent" is its prompt figure; above 1000 the
+      // log keeps only Aider's rounded "4.2k" form). Cache figures appear only when non-zero.
+      const usage = { input: tokenCount(m[1]), output: tokenCount(m[4]), cacheWrite: m[2] ? tokenCount(m[2]) : undefined, cacheRead: m[3] ? tokenCount(m[3]) : undefined };
+      this.emitSubjects();
+      this.push(ev('system', full, { usage }));
     } else if (VERSION.test(t)) sys();
     else if ((m = MODEL.exec(t))) {
       this.run.model = m[1];
@@ -449,6 +453,8 @@ export class SessionParser {
       const call = this.takeEdit(path);
       if (call) this.push(ev('tool_result', full, { toolName: 'edit', toolKind: 'edit', toolCallId: call.id }));
       this.push(ev('file_change', full, { toolName: 'edit', filePath: path, fileOp: call?.op ?? 'edit' }));
+      const d = call?.diff;
+      pushChange(this.run, { ts: this.s.startedAt, filePath: path, op: call?.op ?? 'edit', diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: call?.id });
     } else if ((m = DID_NOT_APPLY.exec(t))) {
       this.emitSubjects();
       const call = this.takeEdit(m[1]);

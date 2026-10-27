@@ -204,8 +204,9 @@ describe('cline legacy tasks', () => {
     expect(r.projectName).toBe('todo-cli');
     expect(r.projectPath).toBe('C:\\Users\\alex\\todo-cli');
     expect(r.model).toBe('claude-sonnet-4-5');
-    expect(r.inputTokens).toBe(81940);
-    expect(r.outputTokens).toBe(1700);
+    // Per API request, kept as Cline records them (cache reads and writes are separate fields).
+    expect(r.usage).toMatchObject({ input: 81940, output: 1700, cacheRead: 68000, cacheWrite: 8900 });
+    expect(Object.keys(r.usage!.byDay!)).toHaveLength(1);
     expect(r.turn).toBe('completed');
     expect(r.openTool).toBeUndefined();
     expect(r.startedAt).toBe(1792900000000);
@@ -213,6 +214,12 @@ describe('cline legacy tasks', () => {
     expectPaired(st);
     // The failed first edit (diff_error) is an error, not a file change; the two applied edits are.
     expect(r.files).toEqual({ 'todo_cli/cli.py': { ops: ['edit'], count: 2, lastTs: 1792900022300 } });
+    // The same two applied edits as changes, from their SEARCH/REPLACE blocks.
+    expect(r.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved])).toEqual([
+      ['todo_cli/cli.py', 'edit', expect.any(Number), expect.any(Number)],
+      ['todo_cli/cli.py', 'edit', 1, 1],
+    ]);
+    expect(r.changes![1].diff).toBe(['@@', '-    click.echo(todo.title)', '+    click.echo(f"[{todo.priority}] {todo.title}")'].join('\n'));
     const failed = r.events.find((e) => e.toolCallId === 'toolu_01EditCli000000000000002' && e.kind === 'tool_result');
     expect(failed?.isError).toBe(true);
     expect(r.events.find((e) => e.kind === 'error')?.text).toBe('Edit failed: todo_cli/cli.py');
@@ -231,6 +238,7 @@ describe('cline legacy tasks', () => {
     expect(st.run.turnDetail).toBe('Waiting for approval to create todo_cli/export.py');
     expect(st.run.openTool).toEqual({ name: 'write_to_file', kind: 'edit', since: 1792900603100 });
     expect(st.run.files['todo_cli/export.py']?.ops).toEqual(['create']);
+    expect(st.run.changes ?? []).toEqual([]); // not approved yet: nothing changed
     expect(kinds(st)).toEqual({ user: 1, assistant: 1, tool_call: 1 });
   });
 
@@ -256,8 +264,9 @@ describe('roo code tasks', () => {
     expect(r.projectPath).toBe('C:\\Users\\alex\\todo-cli');
     expect(r.projectName).toBe('todo-cli');
     expect(r.model).toBeUndefined(); // Roo records a profile name, not a model
-    expect(r.inputTokens).toBe(38200);
-    expect(r.outputTokens).toBe(535);
+    expect(r.usage).toMatchObject({ input: 38200, output: 535, cacheRead: 27700, cacheWrite: 8600 });
+    // Roo's appliedDiff names its start line, so the hunk carries line numbers.
+    expect(r.changes!.map((c) => c.diff!.split('\n')[0])).toEqual(['@@ -40,1 +40,4 @@']);
     expect(r.turn).toBe('completed');
     expect(kinds(st)).toEqual({ user: 1, reasoning: 1, assistant: 2, tool_call: 4, tool_result: 4, error: 1 });
     expectPaired(st);
@@ -337,8 +346,14 @@ describe('cline 4.x sessions', () => {
     expect(r.projectName).toBe('todo-cli');
     expect(r.model).toBe('claude-sonnet-4-5');
     expect(r.startedAt).toBe(Date.parse('2026-10-25T05:46:40.000Z'));
-    expect(r.inputTokens).toBe(39700);
-    expect(r.outputTokens).toBe(640);
+    // The manifest totals agree with the per-message metrics, which sit on each message's first event.
+    expect(r.usage).toMatchObject({ input: 39700, output: 640, cacheRead: 30900, cacheWrite: 7300 });
+    expect(r.events.filter((e) => e.usage)).toHaveLength(5);
+    // The editor edit and the apply_patch, each with its diff.
+    expect(r.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved])).toEqual([
+      ['C:\\Users\\alex\\todo-cli\\todo_cli\\cli.py', 'edit', expect.any(Number), expect.any(Number)],
+      ['C:\\Users\\alex\\todo-cli\\todo_cli\\cli.py', 'edit', 3, 1],
+    ]);
     expect(kinds(st)).toEqual({ user: 2, reasoning: 1, assistant: 2, tool_call: 4, tool_result: 4, error: 1 });
     expectPaired(st);
     // <user_input> wrappers are stripped.
@@ -399,8 +414,7 @@ describe('continue sessions', () => {
     expect(r.projectName).toBe('todo-cli');
     expect(r.model).toBe('Claude Sonnet 4.5');
     expect(r.startedAt).toBe(1792910800000);
-    expect(r.inputTokens).toBe(22800);
-    expect(r.outputTokens).toBe(272);
+    expect(r.usage).toMatchObject({ input: 22800, output: 272, cacheRead: 16400, cacheWrite: 5100 });
     expect(kinds(st)).toEqual({ user: 1, reasoning: 1, assistant: 2, tool_call: 4, tool_result: 3 });
     expect(r.files).toEqual({ 'todo_cli/cli.py': { ops: ['edit'], count: 1 } });
     expect(r.events.find((e) => e.toolCallId === 'toolu_ct1' && e.kind === 'tool_result')?.isError).toBe(true);
@@ -423,7 +437,8 @@ describe('continue sessions', () => {
     expect(chat.run.title).toBe('How does the store persist todos');
     expect(chat.run.turn).toBe('completed');
     expect(kinds(chat)).toEqual({ user: 1, assistant: 1 });
-    expect(chat.run.inputTokens).toBe(900);
+    expect(chat.run.usage).toMatchObject({ input: 900, output: 40 });
+    expect(chat.run.usage!.cacheRead).toBeUndefined(); // not recorded for this message
 
     const cliRef = await refByPath(cont, [CONT_SESSIONS], CONT_CLI);
     const cli = await parse(cont, cliRef);
@@ -531,7 +546,8 @@ describe('re-reading whole-file JSON', () => {
     const second = await parse(cline, freshRef(ref), first);
     expect(second).not.toBe(first);
     expect(second.run.turn).toBe('completed');
-    expect(second.run.inputTokens).toBe(8900);
+    expect(second.run.usage).toMatchObject({ input: 8900 });
+    expect(second.run.changes!.map((c) => [c.filePath, c.op, c.linesAdded])).toEqual([['todo_cli/export.py', 'create', expect.any(Number)]]);
     expectPaired(second);
   });
 

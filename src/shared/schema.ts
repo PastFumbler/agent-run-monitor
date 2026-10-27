@@ -66,8 +66,35 @@ export interface RunCounts {
   toolCalls: number;
   errors: number;
   filesChanged: number;
-  inputTokens?: number;
-  outputTokens?: number;
+}
+
+/**
+ * Token counts exactly as the source records them. A field the source does not record is
+ * undefined (show "not reported"), never 0, and nothing is ever estimated. Where a source's input
+ * figure includes the prompt cache and the split is documented (Anthropic, OpenAI/Codex,
+ * Gemini/Qwen, Copilot, OpenCode), `input` is the uncached part, so total input = input +
+ * cacheRead + cacheWrite. Cline, Roo Code, Continue and Aider record provider-dependent figures,
+ * kept as recorded. Sources that report one combined input figure leave the cache fields undefined.
+ */
+export interface TokenUsage {
+  /** Input tokens not read from or written to the prompt cache (see above for the exceptions). */
+  input?: number;
+  /** Output tokens, including reasoning ("thinking") tokens where the source reports them. */
+  output?: number;
+  /** Input tokens read from the prompt cache (cache hits). */
+  cacheRead?: number;
+  /** Input tokens written to the prompt cache (cache creation). */
+  cacheWrite?: number;
+}
+
+/** A run's token totals, plus the same counts per local calendar day. */
+export interface RunUsage extends TokenUsage {
+  /**
+   * Usage per local day ('YYYY-MM-DD', see shared/usage.ts dayKey) of the message or record that
+   * reported it. Tokens whose time the source does not record count in the totals only, so the
+   * days may add up to less than the totals; the remainder has no known time.
+   */
+  byDay?: Record<string, TokenUsage>;
 }
 
 export interface RunSummary {
@@ -91,6 +118,16 @@ export interface RunSummary {
    */
   statusInferred?: boolean;
   counts: RunCounts;
+  /**
+   * Token usage. Absent when the source did not report any usage for this run: the UI says
+   * "not reported", never 0.
+   */
+  usage?: RunUsage;
+  /**
+   * True when the run has at least one reasoning event with readable text. Reasoning the source
+   * stored without its text (placeholder events) does not count.
+   */
+  hasReasoning?: boolean;
   /** Where the run was read from, shown in Overview so users can find the file. */
   sourcePath: string;
   /** Set when status is 'unreadable'. */
@@ -132,6 +169,35 @@ export interface RunEvent {
   isError?: boolean;
   /** For tool calls whose result has arrived. */
   durationMs?: number;
+  /**
+   * Tokens newly reported with this event: for most sources the usage of the model message the
+   * event belongs to (on its first event only). Already counted in RunSummary.usage.
+   */
+  usage?: TokenUsage;
+  /** The source stored no readable text for this event (e.g. reasoning kept only as a signature); `text` is a stand-in. */
+  placeholder?: boolean;
+}
+
+/**
+ * One edit an agent made to a file. Line counts are exact when known and undefined when the
+ * source does not record the edit's content (show "unknown", never 0).
+ */
+export interface CodeChange {
+  /** Epoch ms, when the source records it. */
+  ts?: number;
+  filePath: string;
+  op: FileOp;
+  linesAdded?: number;
+  linesRemoved?: number;
+  /**
+   * Unified-diff style text when the source records the edit's content: hunks start with "@@"
+   * (with line numbers when they are known), then lines starting with " ", "+" or "-". Masked
+   * like event text.
+   */
+  diff?: string;
+  /** The diff was cut (or dropped) to keep memory bounded. Line counts stay exact. */
+  truncated?: boolean;
+  toolCallId?: string;
 }
 
 export interface FileChangeSummary {
@@ -161,6 +227,10 @@ export interface RunDetail {
   totalEvents: number;
   files: FileChangeSummary[];
   tools: ToolCallSummary[];
+  /** Edits in time order, oldest first (may be a tail window, see totalChanges). */
+  changes: CodeChange[];
+  /** Total edits in the run (changes may be a tail window). */
+  totalChanges: number;
 }
 
 /** What the first-run wizard and the sources settings show per agent. */

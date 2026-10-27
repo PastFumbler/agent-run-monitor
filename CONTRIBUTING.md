@@ -285,7 +285,7 @@ const continuing = !!prev && !prev.run.readError && prev.extra.v === STATE_VERSI
 
 Event kinds are `user`, `assistant`, `reasoning`, `tool_call`, `tool_result`, `file_change`, `error` and `system`. Give tool calls and results a `toolCallId` when the format has one so the UI can pair them, and set `isError` on failed results. Give file edits a `filePath` and `fileOp` (`create`, `edit`, `delete`).
 
-Also fill in what the format offers: `projectPath` and `projectName` (last segment of the working directory), `gitBranch`, `model`, `inputTokens` / `outputTokens`, and `parentPath` for a sub-run whose parent is another session file.
+Also fill in what the format offers: `projectPath` and `projectName` (last segment of the working directory), `gitBranch`, `model`, token usage (put a message's tokens on its event as `usage`, or call `addUsage` / `addUsageSince` / `setUsageTotal` from `core/usage.ts`; leave out what the format does not record, never write 0 for it), each applied edit (`pushChange` from `core/changes.ts`, with the diff when the format records the edit's content), `placeholder: true` on reasoning events whose text was not stored, and `parentPath` for a sub-run whose parent is another session file.
 
 **Turn and open tool.** These two fields drive the status:
 

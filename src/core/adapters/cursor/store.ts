@@ -13,8 +13,9 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { emptyRun, freshState, type ParseContext, type ParseState, type ParsedRun, type SessionRef } from '../../adapter';
+import { pushChange } from '../../changes';
 import { isObj, pushEvent, textOf, toMs } from '../../events';
-import { cleanPrompt, cursorFilePath, cursorInputSummary, cursorToolKind, fileOpFor, jsonString, projectNameOf, stripRedacted, workspacePathFrom } from './common';
+import { cleanPrompt, cursorEditDiff, cursorFilePath, cursorInputSummary, cursorToolKind, fileOpFor, jsonString, projectNameOf, stripRedacted, workspacePathFrom } from './common';
 import { asText, dbStamp, one, parseJson, readOnce, tableNames, type Database } from '../../sqlite';
 import { NO_RECORDS, dbOptions, realName } from './composer';
 
@@ -169,6 +170,11 @@ function addToolCall(run: ParsedRun, id: string, name: string, args: unknown, tu
     filePath,
     fileOp: kind === 'edit' && filePath ? fileOpFor(name) : undefined,
   });
+  // Counted at the call, like the files table: this store pairs results loosely and keeps no times.
+  if (kind === 'edit' && filePath) {
+    const d = cursorEditDiff(name, args);
+    pushChange(run, { filePath, op: fileOpFor(name), diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: id });
+  }
   turn.pending.set(id, { name, msgIndex });
 }
 

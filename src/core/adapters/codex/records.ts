@@ -20,7 +20,9 @@
 
 import type { ToolKind } from '@shared/schema';
 import { ev, type ParsedRun, type TurnState } from '../../adapter';
+import { pushChange } from '../../changes';
 import { baseName, isObj, pushEvent, textOf, toolFilePath, toolInputSummary, toMs } from '../../events';
+import { setUsageTotal, tokenCount } from '../../usage';
 import {
   bareName,
   changeFiles,
@@ -36,7 +38,7 @@ import {
 } from './tools';
 
 /** Bump when CodexState changes shape, so old incremental state is discarded. */
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 interface Pending {
   name: string;
@@ -206,7 +208,7 @@ function envelope(rec: Record<string, unknown>, run: ParsedRun, s: CodexState): 
       pushEvent(run, ev('system', 'Context compacted', { ts }));
       return true;
     case 'token_usage_record':
-      setTokens(run, p.thread_token_usage);
+      setTokens(run, p.thread_token_usage, ts);
       return true;
     default:
       return QUIET_TOP.has(String(rec.type));
@@ -251,10 +253,25 @@ function setProject(run: ParsedRun, s: CodexState, cwd: string): void {
   s.cwd ??= cwd;
 }
 
-function setTokens(run: ParsedRun, usage: unknown): void {
+/**
+ * Codex records running session totals (OpenAI usage): input_tokens includes the cached part,
+ * output_tokens includes reasoning. The growth since the last total goes to `ts`'s day.
+ */
+function setTokens(run: ParsedRun, usage: unknown, ts?: number): void {
   if (!isObj(usage)) return;
-  if (typeof usage.input_tokens === 'number') run.inputTokens = usage.input_tokens;
-  if (typeof usage.output_tokens === 'number') run.outputTokens = usage.output_tokens;
+  const input = tokenCount(usage.input_tokens);
+  const cacheRead = tokenCount(usage.cached_input_tokens);
+  const cacheWrite = tokenCount(usage.cache_write_input_tokens);
+  setUsageTotal(
+    run,
+    {
+      input: input === undefined ? undefined : Math.max(0, input - (cacheRead ?? 0) - (cacheWrite ?? 0)),
+      output: tokenCount(usage.output_tokens),
+      cacheRead,
+      cacheWrite,
+    },
+    ts,
+  );
 }
 
 // ---------------------------------------------------------------- turn state
@@ -398,8 +415,11 @@ function emitFiles(run: ParsedRun, s: CodexState, id: string | undefined, files:
     if (s.donePatches.includes(id)) return;
     markPatchDone(s, id);
   }
-  for (const f of files)
+  for (const f of files) {
     pushEvent(run, ev('file_change', `${f.op === 'create' ? 'Created' : f.op === 'delete' ? 'Deleted' : 'Edited'} ${f.path}`, { ts, toolCallId: id, filePath: f.path, fileOp: f.op, toolKind: 'edit' }));
+    if (f.moved) continue; // recorded on the new path
+    pushChange(run, { ts, filePath: f.path, op: f.op, diff: f.diff?.diff, linesAdded: f.diff?.added, linesRemoved: f.diff?.removed, toolCallId: id });
+  }
 }
 
 /** A side event (exec_command_end, patch_apply_end, ...) says the call failed. */
@@ -554,7 +574,7 @@ function eventMsg(p: Record<string, unknown>, ts: number | undefined, run: Parse
     }
     case 'token_count':
       // `info` is null when only rate limits changed; very early files may carry a flat usage. [UNVERIFIED]
-      setTokens(run, isObj(p.info) ? p.info.total_token_usage : p);
+      setTokens(run, isObj(p.info) ? p.info.total_token_usage : p, ts);
       return true;
     case 'error': {
       // Persisted only in older / extended-history files. A retry may still recover the turn.

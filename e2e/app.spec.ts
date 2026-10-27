@@ -138,6 +138,22 @@ test.describe('demo scenario', () => {
     await expect(page.getByTestId('view-tools').getByRole('table')).toBeVisible();
   });
 
+  test('Overview shows the token split, or says the agent does not report tokens', async ({ page }) => {
+    await page.goto(demo());
+    await ready(page);
+    await openRun(page, /Add a --due flag to the add command/);
+    await page.getByRole('radio', { name: 'Overview' }).click();
+    const tokens = page.getByTestId('overview-tokens');
+    await expect(tokens).toHaveText(/^[\d,]+ in · [\d,]+ out · [\d,]+ cache read · [\d,]+ cache write$/);
+    await expect(page.getByTestId('view-overview').locator('.stat__label', { hasText: 'Tokens' })).toBeVisible();
+
+    // The demo's Cursor runs record no tokens: "not reported", and no Tokens counter showing 0.
+    await page.getByRole('button', { name: /^Cursor, \d+ runs?$/ }).click();
+    await page.getByTestId('run-list').getByRole('option').first().click();
+    await expect(tokens).toHaveText('Not reported');
+    await expect(page.getByTestId('view-overview').locator('.stat__label', { hasText: 'Tokens' })).toHaveCount(0);
+  });
+
   test('unreadable run shows a calm card, not a crash', async ({ page }) => {
     await page.goto(demo());
     await ready(page);

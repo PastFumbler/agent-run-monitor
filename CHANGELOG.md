@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **Run folders**: create, rename and delete folders in Settings > Folders. They are kept in the app's own settings, never in agent files; deleting a folder returns its runs to Unfiled.
+- **Token usage, code changes and reasoning in the run data**: every adapter now reports input, output and prompt-cache tokens separately (per message and per day where the agent records them, "not reported" where it does not, never estimated), each applied edit with its line counts and diff, and whether a run has readable reasoning. Overview shows the token split.
 
 ## [0.1.0] - Not released yet
 

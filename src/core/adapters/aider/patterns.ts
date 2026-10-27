@@ -65,6 +65,7 @@ export const REASONING =
 // Edit blocks inside assistant text, by edit format (aider/coders/*).
 export const SEARCH = /^<{5,9} SEARCH>?\s*$/;
 export const DIVIDER = /^={5,9}\s*$/;
+export const REPLACE = /^>{5,9} REPLACE\s*$/;
 export const UDIFF_OLD = /^--- (.+)$/;
 export const UDIFF_NEW = /^\+\+\+ (.+)$/;
 export const PATCH_FILE = /^\*\*\* (Add|Update|Delete) File: (.+)$/;

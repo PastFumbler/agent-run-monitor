@@ -4,9 +4,12 @@
 // and, once the state is completed/error, a tool_result with the same toolCallId.
 // [SRC sst/opencode v1.1.65 session/message-v2.ts; main schema/src/session-message.ts]
 
+import type { TokenUsage } from '@shared/schema';
 import type { FileOp, OpenTool, ParsedRun, TurnState } from '../../adapter';
 import { emptyRun } from '../../adapter';
+import { countDiffLines, diffTexts, newFileDiff, pushChange, splitFileDiffs, type DiffText } from '../../changes';
 import { baseName, isObj, pushEvent, toolFilePath, toolInputSummary, toolKind } from '../../events';
+import { tokenCount } from '../../usage';
 import { resolveIn } from './paths';
 
 export const NO_RECORDS = 'No records this app recognises; the agent may have changed its format.';
@@ -21,7 +24,6 @@ export interface Builder {
   /** Open tool calls, oldest first. */
   open: Map<string, OpenTool>;
   recognised: number;
-  tokens: { input: number; output: number; seen: boolean };
 }
 
 export function newBuilder(dir: string | undefined, projectName: string | undefined, title: string | undefined): Builder {
@@ -30,7 +32,7 @@ export function newBuilder(dir: string | undefined, projectName: string | undefi
   const t = title?.trim();
   // A generated title wins over the first prompt; pushEvent fills the title from the first user event otherwise.
   if (t && !DEFAULT_TITLE.test(t)) run.title = t.length > 120 ? `${t.slice(0, 117)}…` : t;
-  return { run, dir, open: new Map(), recognised: 0, tokens: { input: 0, output: 0, seen: false } };
+  return { run, dir, open: new Map(), recognised: 0 };
 }
 
 /**
@@ -48,13 +50,55 @@ export function projectLabel(name: string | undefined, worktree: string | undefi
 export const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
 export const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
-/** Per-message usage: {input, output, reasoning, cache{read, write}}. Input counts cache like the other adapters. */
-export function addTokens(b: Builder, t: unknown): void {
-  if (!isObj(t)) return;
+/**
+ * Usage {input, output, reasoning, cache{read, write}} as TokenUsage. OpenCode already keeps the
+ * cache out of `input` [SRC session getUsage]; reasoning is billed as output.
+ */
+export function usageOf(t: unknown): TokenUsage | undefined {
+  if (!isObj(t)) return undefined;
   const cache = isObj(t.cache) ? t.cache : {};
-  b.tokens.input += (num(t.input) ?? 0) + (num(cache.read) ?? 0) + (num(cache.write) ?? 0);
-  b.tokens.output += (num(t.output) ?? 0) + (num(t.reasoning) ?? 0);
-  b.tokens.seen = true;
+  const out = tokenCount(t.output);
+  const reasoning = tokenCount(t.reasoning);
+  return {
+    input: tokenCount(t.input),
+    output: out === undefined && reasoning === undefined ? undefined : (out ?? 0) + (reasoning ?? 0),
+    cacheRead: tokenCount(cache.read),
+    cacheWrite: tokenCount(cache.write),
+  };
+}
+
+/** Sums usages field by field (a field stays undefined when no usage reports it). */
+export function sumUsage(list: (TokenUsage | undefined)[]): TokenUsage | undefined {
+  let out: TokenUsage | undefined;
+  for (const u of list) {
+    if (!u) continue;
+    out ??= {};
+    for (const k of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) if (u[k] !== undefined) out[k] = (out[k] ?? 0) + u[k]!;
+  }
+  return out;
+}
+
+/**
+ * A file diff from tool metadata: a unified patch (headers dropped), else before/after texts.
+ * additions/deletions, when recorded, are the line counts.
+ */
+export function fileDiff(patch: unknown, before: unknown, after: unknown, additions?: unknown, deletions?: unknown): DiffText | undefined {
+  let d: DiffText | undefined;
+  const part = typeof patch === 'string' ? splitFileDiffs(patch)[0] : undefined;
+  if (part) d = { diff: part.diff, ...countDiffLines(part.diff) };
+  else if (typeof before === 'string' && typeof after === 'string') d = before ? diffTexts(before, after, 1) : newFileDiff(after);
+  const add = tokenCount(additions);
+  const del = tokenCount(deletions);
+  if (add !== undefined && del !== undefined) return { diff: d?.diff ?? '', added: add, removed: del };
+  return d;
+}
+
+/** What an edit tool's input describes: edit {oldString, newString}, write {content}. */
+function inputDiff(input: unknown): DiffText | undefined {
+  if (!isObj(input)) return undefined;
+  if (typeof input.oldString === 'string' && typeof input.newString === 'string') return diffTexts(input.oldString, input.newString);
+  if (typeof input.content === 'string') return newFileDiff(input.content);
+  return undefined;
 }
 
 /** Model JSON is {id, providerID} (G2/G3 columns, G3 messages) or {modelID, providerID} (G1/G2 messages). */
@@ -96,8 +140,8 @@ export interface ToolInfo {
   error?: string;
   start?: number;
   end?: number;
-  /** Files the tool's metadata says it changed (paths already resolved). */
-  files: { path: string; op: FileOp; text: string }[];
+  /** Files the tool's metadata says it changed (paths already resolved), with their diff when recorded. */
+  files: { path: string; op: FileOp; text: string; diff?: DiffText }[];
   /** Operation for the path in the tool's input, when the metadata does not say. */
   op?: FileOp;
 }
@@ -142,10 +186,18 @@ export function emitTool(b: Builder, t: ToolInfo, fallbackTs: number | undefined
     ...(t.start != null && t.end != null ? { durationMs: Math.max(0, t.end - t.start) } : {}),
   });
   if (!ok) return;
+  const at = t.end ?? ts;
+  const change = (path: string, op: FileOp, d: DiffText | undefined) =>
+    pushChange(b.run, { ts: at, filePath: path, op, diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: t.id });
+  if (filePath) {
+    const meta = t.files.find((f) => f.path === filePath);
+    change(filePath, opFor(filePath), meta?.diff ?? inputDiff(t.input));
+  }
   for (const f of t.files) {
     if (touched.has(f.path)) continue;
     touched.add(f.path);
-    pushEvent(b.run, { kind: 'file_change', text: f.text, filePath: f.path, fileOp: f.op, toolCallId: t.id, toolName: t.name, ts: t.end ?? ts });
+    pushEvent(b.run, { kind: 'file_change', text: f.text, filePath: f.path, fileOp: f.op, toolCallId: t.id, toolName: t.name, ts: at });
+    change(f.path, f.op, f.diff);
   }
 }
 
@@ -158,6 +210,7 @@ export function emitStepFiles(b: Builder, files: unknown, ts: number | undefined
     if (touched.has(p)) continue;
     touched.add(p);
     pushEvent(b.run, { kind: 'file_change', text: `Changed ${f}`, filePath: p, fileOp: 'edit', ts });
+    pushChange(b.run, { ts, filePath: p, op: 'edit' }); // the step lists the file only: counts unknown
   }
 }
 
@@ -172,10 +225,6 @@ export function settle(b: Builder, turn: TurnState, detail: string | undefined, 
     run.turn = 'waiting_input';
     run.turnDetail = 'Waiting for your answer to a question';
     run.openTool = undefined;
-  }
-  if (b.tokens.seen && run.inputTokens == null) {
-    run.inputTokens = b.tokens.input;
-    run.outputTokens = b.tokens.output;
   }
 }
 

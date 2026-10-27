@@ -9,9 +9,11 @@
 // The live session status (busy | idle | retry) is in memory only, so the turn is inferred from
 // the last message [INFERRED-SRC].
 
+import type { TokenUsage } from '@shared/schema';
 import type { FileOp, ParsedRun, TurnState } from '../../adapter';
 import { isObj, pushEvent, toMs } from '../../events';
-import { NO_RECORDS, addTokens, emitStepFiles, emitTool, errorInfo, modelName, newBuilder, num, opOf, settle, str, type Builder, type ToolInfo } from './common';
+import { addUsageSince, setUsageTotal } from '../../usage';
+import { NO_RECORDS, emitStepFiles, emitTool, errorInfo, fileDiff, modelName, newBuilder, num, opOf, settle, str, sumUsage, usageOf, type Builder, type ToolInfo } from './common';
 import { resolveIn } from './paths';
 
 export interface V1Session {
@@ -21,8 +23,8 @@ export interface V1Session {
   model?: string;
   created?: number;
   updated?: number;
-  inputTokens?: number;
-  outputTokens?: number;
+  /** Session totals, when the store keeps them: they win over the sum of the messages. */
+  usage?: TokenUsage;
 }
 
 export interface V1Message {
@@ -37,10 +39,6 @@ export function buildV1Run(session: V1Session, messages: V1Message[], unreadable
   const run = b.run;
   run.model = session.model;
   run.skipped += unreadable;
-  if (session.inputTokens || session.outputTokens) {
-    run.inputTokens = session.inputTokens ?? 0;
-    run.outputTokens = session.outputTokens ?? 0;
-  }
   let lastAt = session.updated ?? 0;
   let last: Record<string, unknown> | undefined;
   for (const m of messages) {
@@ -55,6 +53,8 @@ export function buildV1Run(session: V1Session, messages: V1Message[], unreadable
     b.recognised++;
     last = m.info;
   }
+  // Usage the messages do not account for (e.g. title generation) goes to the session's last day.
+  if (session.usage) setUsageTotal(run, session.usage, session.updated);
   const { turn, detail } = turnOf(last);
   settle(b, turn, detail, turn === 'in_progress' || turn === 'unknown');
   if (messages.length + unreadable > 0 && !b.recognised) run.readError = NO_RECORDS;
@@ -114,8 +114,8 @@ function assistantMessage(b: Builder, m: V1Message): void {
   // Usage: each step-finish part carries its own step's tokens, while the message's tokens may hold
   // only the last step's [INFERRED-SRC session/processor.ts], so sum the steps when they are there.
   const steps = m.parts.filter((p) => p.type === 'step-finish' && isObj(p.tokens));
-  if (steps.length) for (const p of steps) addTokens(b, p.tokens);
-  else addTokens(b, info.tokens);
+  const usage = steps.length ? sumUsage(steps.map((p) => usageOf(p.tokens))) : usageOf(info.tokens);
+  const mark = run.tally.events;
   b.open.clear(); // tools of an earlier step still open were cut off
   const touched = new Set<string>();
   for (const p of m.parts) {
@@ -157,6 +157,7 @@ function assistantMessage(b: Builder, m: V1Message): void {
     const ets = toMs(time.completed) ?? ts;
     pushEvent(run, err.aborted ? { kind: 'system', text: 'Interrupted', ts: ets } : { kind: 'error', text: err.text, isError: true, ts: ets });
   }
+  if (usage) addUsageSince(run, mark, usage, ts);
 }
 
 /** G1/G2 tool part: state.status pending | running | completed | error; input.filePath is absolute. */
@@ -165,11 +166,12 @@ function v1Tool(b: Builder, p: Record<string, unknown>): ToolInfo {
   const time = isObj(st.time) ? st.time : {};
   const meta = isObj(st.metadata) ? st.metadata : {};
   const name = str(p.tool) ?? 'tool';
-  const files: { path: string; op: FileOp; text: string }[] = [];
+  const files: ToolInfo['files'] = [];
   const fd = isObj(meta.filediff) ? meta.filediff : undefined;
   if (fd && str(fd.file)) {
     const op: FileOp = fd.before === '' ? 'create' : fd.after === '' && fd.status === 'deleted' ? 'delete' : opOf(fd.status);
-    files.push({ path: resolveIn(b.dir, fd.file as string), op, text: str(meta.diff) ?? '' });
+    const diff = fileDiff(meta.diff, fd.before, fd.after, fd.additions, fd.deletions);
+    files.push({ path: resolveIn(b.dir, fd.file as string), op, text: str(meta.diff) ?? '', diff });
   }
   // The write tool is believed to record metadata.exists (whether the file was there before) [UNVERIFIED].
   const op: FileOp | undefined = name === 'write' ? (meta.exists === false ? 'create' : 'edit') : undefined;

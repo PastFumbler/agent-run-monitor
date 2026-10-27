@@ -6,14 +6,16 @@
 // interrupted). A held execution claim (`time_suspended`) means a turn is running. Pending
 // permission asks are not persisted anywhere, so "waiting for approval" cannot be seen [SRC].
 
+import type { TokenUsage } from '@shared/schema';
 import type { FileOp, ParsedRun, TurnState } from '../../adapter';
 import { isObj, pushEvent, textOf, toMs } from '../../events';
+import { addUsageSince, setUsageTotal, tokenCount } from '../../usage';
 import {
   NO_RECORDS,
-  addTokens,
   emitStepFiles,
   emitTool,
   errorInfo,
+  fileDiff,
   modelName,
   newBuilder,
   num,
@@ -21,7 +23,9 @@ import {
   projectLabel,
   settle,
   str,
+  usageOf,
   type Builder,
+  type ToolInfo,
 } from './common';
 import { nativePath, resolveIn } from './paths';
 import { all, asNum, asText, each, one, parseJson, pick, tableNames, type Database, type Row } from './sqlite';
@@ -77,6 +81,23 @@ export function projectName(db: Database, projectId: string | undefined, dir: st
   return projectLabel(asText(p?.name), asText(p?.worktree), dir);
 }
 
+/**
+ * Session token totals (G2/G3 session columns), as TokenUsage: input excludes the cache,
+ * reasoning counts as output. Undefined when the columns are missing or all zero (not kept).
+ */
+export function sessionUsage(s: Row): TokenUsage | undefined {
+  const n = (k: string) => tokenCount(asNum(s[k]));
+  const out = n('tokens_output');
+  const reasoning = n('tokens_reasoning');
+  const u: TokenUsage = {
+    input: n('tokens_input'),
+    output: out === undefined && reasoning === undefined ? undefined : (out ?? 0) + (reasoning ?? 0),
+    cacheRead: n('tokens_cache_read'),
+    cacheWrite: n('tokens_cache_write'),
+  };
+  return u.input || u.output || u.cacheRead || u.cacheWrite ? u : undefined;
+}
+
 export function buildV2Run(db: Database, id: string): ParsedRun {
   const s = one(db, `SELECT ${pick(db, 'session_v2', SESSION_COLS)} FROM session_v2 WHERE id = ?`, [id]);
   if (!s) throw new Error('This session is no longer in the OpenCode database.');
@@ -86,12 +107,6 @@ export function buildV2Run(db: Database, id: string): ParsedRun {
   run.model = modelName(asText(s.model));
   // A sub-agent (task tool) session: its parent is another session_v2 row in this database.
   run.parentSubId = asText(s.parent_id) || undefined;
-  const sessionIn = (asNum(s.tokens_input) ?? 0) + (asNum(s.tokens_cache_read) ?? 0) + (asNum(s.tokens_cache_write) ?? 0);
-  const sessionOut = (asNum(s.tokens_output) ?? 0) + (asNum(s.tokens_reasoning) ?? 0);
-  if (sessionIn || sessionOut) {
-    run.inputTokens = sessionIn;
-    run.outputTokens = sessionOut;
-  }
 
   const t: TurnTracker = { turn: 'unknown', errorInTurn: false, fromIdle: false };
   let lastAt = asNum(s.time_updated) ?? 0;
@@ -111,6 +126,9 @@ export function buildV2Run(db: Database, id: string): ParsedRun {
     t.detail = undefined;
   }
   if (t.turn === 'unknown' && asText(s.idle_outcome)) idleTurn(t, asText(s.idle_outcome)!, undefined);
+  // Usage the rows do not account for goes to the session's last day.
+  const total = sessionUsage(s);
+  if (total) setUsageTotal(run, total, lastAt || undefined);
   settle(b, t.turn, t.detail, t.turn === 'in_progress' || t.turn === 'unknown');
 
   if (rows && !b.recognised) run.readError = NO_RECORDS;
@@ -188,7 +206,7 @@ function handleRow(b: Builder, r: Row, t: TurnTracker): void {
       pushEvent(run, failed
         ? { kind: 'error', text: `Compaction failed${errorInfo(d.error) ? `: ${errorInfo(d.error)!.text}` : ''}`, isError: true, ts }
         : { kind: 'system', text: `Compacting the conversation (${str(d.reason) ?? 'auto'}, ${str(d.status) ?? 'running'})`, ts });
-      if (isObj(d.tokens)) addTokens(b, d.tokens);
+      if (isObj(d.tokens)) addUsageSince(run, run.tally.events - 1, usageOf(d.tokens)!, ts);
       break;
     }
     case 'idle': {
@@ -239,6 +257,7 @@ function assistantRow(b: Builder, d: Record<string, unknown>, ts: number | undef
   const run = b.run;
   const time = isObj(d.time) ? d.time : {};
   run.model = modelName(d.model) ?? run.model;
+  const mark = run.tally.events;
   // A new step starts only after the previous step's tools finished: any still open were cut off.
   b.open.clear();
   const touched = new Set<string>();
@@ -256,7 +275,7 @@ function assistantRow(b: Builder, d: Record<string, unknown>, ts: number | undef
   }
   const snap = isObj(d.snapshot) ? d.snapshot : {};
   emitStepFiles(b, snap.files, toMs(time.completed) ?? ts, touched);
-  if (isObj(d.tokens)) addTokens(b, d.tokens);
+  if (isObj(d.tokens)) addUsageSince(run, mark, usageOf(d.tokens)!, ts);
 
   const err = errorInfo(d.error);
   if (err) {
@@ -288,9 +307,11 @@ function v2Tool(b: Builder, c: Record<string, unknown>) {
   const time = isObj(c.time) ? c.time : {};
   const meta = isObj(st.metadata) ? st.metadata : {};
   const status = str(st.status) ?? 'running';
-  const files: { path: string; op: FileOp; text: string }[] = [];
+  const files: ToolInfo['files'] = [];
   if (Array.isArray(meta.files))
-    for (const f of meta.files) if (isObj(f) && str(f.file)) files.push({ path: resolveIn(b.dir, f.file as string), op: opOf(f.status), text: str(f.patch) ?? '' });
+    for (const f of meta.files)
+      if (isObj(f) && str(f.file))
+        files.push({ path: resolveIn(b.dir, f.file as string), op: opOf(f.status), text: str(f.patch) ?? '', diff: fileDiff(f.patch, undefined, undefined, f.additions, f.deletions) });
   const contentText = Array.isArray(st.content)
     ? st.content.map((x) => (isObj(x) && x.type === 'text' ? str(x.text) ?? '' : isObj(x) ? `[${str(x.type) ?? 'item'} ${str(x.filename) ?? str(x.mime) ?? ''}]`.replace(' ]', ']') : '')).filter(Boolean).join('\n')
     : textOf(st.content);

@@ -15,8 +15,11 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { emptyRun, freshState, type OpenTool, type ParseContext, type ParseState, type ParsedRun, type SessionRef } from '../../adapter';
+import { pushChange } from '../../changes';
 import { isObj, pushEvent, textOf, toMs } from '../../events';
+import { addUsageSince, tokenCount } from '../../usage';
 import {
+  cursorEditDiff,
   cursorFilePath,
   cursorInputSummary,
   cursorToolKind,
@@ -391,6 +394,10 @@ function addTool(run: ParsedRun, tf: Obj, ts: number | undefined, fallbackId: st
         'Tool failed';
     } else text = pickText(res, ['resultForModel', 'output', 'contents', 'content', 'stdout', 'text', 'message']) ?? textOf(res);
     pushEvent(run, { kind: 'tool_result', ts, text, toolName: name, toolCallId: callId, toolKind: kind, isError: isError || undefined });
+    if (counts && filePath) {
+      const d = cursorEditDiff(name, params, tf.result);
+      pushChange(run, { ts, filePath, op: fileOpFor(name), diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: callId });
+    }
     turn.pending = undefined;
   } else {
     const p = isObj(params) ? params : {};
@@ -433,6 +440,7 @@ function addBubble(run: ParsedRun, b: Obj, ts: number | undefined, idx: number, 
   if (!role) return false;
   turn.lastType = role;
   turn.error = undefined;
+  const mark = run.tally.events;
   if (role === 'user') {
     turn.pending = undefined;
     const text = str(b.text) ?? richTextToPlain(b.richText);
@@ -453,24 +461,21 @@ function addBubble(run: ParsedRun, b: Obj, ts: number | undefined, idx: number, 
   // Any later bubble that is not itself a pending tool closes the previous pending one.
   if (!hasTool && (text || thinking)) turn.pending = undefined;
   if (isObj(b.errorDetails)) addError(run, b.errorDetails, ts, turn);
+  const u = bubbleTokens(b);
+  if (u) addUsageSince(run, mark, u, ts);
   return true;
 }
 
-/** Token totals: per-bubble counts are mostly zero in real data, so fall back to context usage. */
-function tokens(run: ParsedRun, cd: Obj, bubbles: Obj[]): void {
-  let input = 0;
-  let output = 0;
-  for (const b of bubbles) {
-    const tc = isObj(b.tokenCount) ? b.tokenCount : isObj(b.usage) ? { inputTokens: b.usage.input_tokens, outputTokens: b.usage.output_tokens } : {};
-    input += num(tc.inputTokens) ?? 0;
-    output += num(tc.outputTokens) ?? 0;
-  }
-  if (input || output) {
-    run.inputTokens = input;
-    run.outputTokens = output;
-  } else if (num(cd.contextTokensUsed)) {
-    run.inputTokens = cd.contextTokensUsed as number; // context in use, the best figure Cursor keeps
-  }
+/**
+ * A bubble's tokens. Cursor writes {inputTokens: 0, outputTokens: 0} on most bubbles, so zeros
+ * mean "not recorded", not "none used". There is no cache split. contextTokensUsed is the
+ * context size, not usage, so it is not counted.
+ */
+function bubbleTokens(b: Obj): { input?: number; output?: number } | undefined {
+  const tc = isObj(b.tokenCount) ? b.tokenCount : isObj(b.usage) ? { inputTokens: b.usage.input_tokens, outputTokens: b.usage.output_tokens } : {};
+  const input = tokenCount(tc.inputTokens);
+  const output = tokenCount(tc.outputTokens);
+  return input || output ? { input: input || undefined, output: output || undefined } : undefined;
 }
 
 function modelOf(cd: Obj, bubbles: Obj[]): string | undefined {
@@ -567,7 +572,6 @@ export function buildComposerRun(db: Database, ref: SessionRef): ParsedRun {
   const updated = toMs(cd.lastUpdatedAt);
   if (updated && (!run.lastEventAt || updated > run.lastEventAt)) run.lastEventAt = updated;
   run.model = modelOf(cd, bubbles);
-  tokens(run, cd, bubbles);
   setTurn(run, cd, turn);
   if (recognised === 0 && bubbles.length + missing > 0) run.readError = NO_RECORDS;
   return run;

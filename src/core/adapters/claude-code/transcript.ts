@@ -13,8 +13,11 @@
 // Many record types are bookkeeping (titles, cost, request blobs); they are recognised and skipped.
 
 import { basename } from 'node:path';
+import type { TokenUsage } from '@shared/schema';
 import type { ParsedRun, ParseState, SessionRef, ToolKind } from '../../adapter';
 import { freshState } from '../../adapter';
+import { capDiff, diffFromHunks, diffTexts, newFileDiff, pushChange, type DiffText } from '../../changes';
+import { addUsage, tokenCount } from '../../usage';
 import { baseName, isObj, makeTitle, pushEvent, textOf, toMs, toolFilePath, toolInputSummary, toolKind } from '../../events';
 import { readJsonl } from '../../jsonl';
 import { cloneState, readSmallJson } from './io';
@@ -24,7 +27,7 @@ import { workflowAgentVerdict } from './workflow';
 import { SHELL_STUCK_AFTER, STUCK_AFTER, TOOL_STUCK_AFTER } from '../../status';
 
 /** Bump when the extra-state shape or parsing rules change: older states are re-read from 0. */
-const STATE_VERSION = 2;
+const STATE_VERSION = 3;
 
 interface PendingTool {
   id: string;
@@ -32,6 +35,8 @@ interface PendingTool {
   kind: ToolKind;
   since?: number;
   filePath?: string;
+  /** For edit tools: the change as the call's input describes it, used when the result has no patch. */
+  edit?: DiffText;
 }
 
 export interface TranscriptExtra {
@@ -48,8 +53,7 @@ export interface TranscriptExtra {
   metaTitle?: string;
   /** Usage of the message currently being written, so repeated blocks are counted once. */
   msgId?: string;
-  msgIn: number;
-  msgOut: number;
+  msgUsage?: TokenUsage;
   /** The turn as the transcript alone shows it (the registry may override it per parse). */
   baseTurn?: ParsedRun['turn'];
   baseDetail?: string;
@@ -113,7 +117,7 @@ export async function parseTranscript(ref: SessionRef, prev: ParseState | undefi
 }
 
 async function initFresh(st: ParseState, ref: SessionRef, kind: ClaudeRunKind): Promise<void> {
-  const extra: TranscriptExtra = { v: STATE_VERSION, kind, pending: [], recognised: 0, msgIn: 0, msgOut: 0 };
+  const extra: TranscriptExtra = { v: STATE_VERSION, kind, pending: [], recognised: 0 };
   st.extra = extra;
   st.run.projectName = ref.hint?.project || 'Unknown project';
   if (kind === 'subagent' || kind === 'workflow-agent') {
@@ -209,12 +213,18 @@ function onAssistant(rec: Record<string, unknown>, run: ParsedRun, x: Transcript
   const ts = toMs(rec.timestamp);
   const synthetic = msg.model === '<synthetic>';
   if (typeof msg.model === 'string' && msg.model && !synthetic) run.model = msg.model;
-  countUsage(msg, run, x);
+  // The tokens this record newly reports go on its first event (see RunEvent.usage).
+  let usage = usageDelta(msg, x);
+  const take = () => {
+    const u = usage;
+    usage = undefined;
+    return u;
+  };
   const blocks = blocksOf(msg.content);
 
   if (rec.isApiErrorMessage === true) {
     const text = blocks.map((b) => (isObj(b) && typeof b.text === 'string' ? b.text : '')).join('\n').trim() || textOf(rec.error) || 'API error';
-    pushEvent(run, { kind: 'error', text, ts, isError: true });
+    pushEvent(run, { kind: 'error', text, ts, isError: true, usage: take() });
     setTurn(run, 'error', apiErrorDetail(rec, text));
     x.pending = [];
     return true;
@@ -224,18 +234,21 @@ function onAssistant(rec: Record<string, unknown>, run: ParsedRun, x: Transcript
     if (!isObj(b)) continue;
     switch (b.type) {
       case 'thinking':
-      case 'redacted_thinking':
-        pushEvent(run, { kind: 'reasoning', text: thinkingText(b, rec), ts });
+      case 'redacted_thinking': {
+        // Most thinking blocks are stored empty (only a signature): a stand-in text, marked as such.
+        const readable = b.type === 'thinking' && typeof b.thinking === 'string' && !!b.thinking.trim();
+        pushEvent(run, { kind: 'reasoning', text: thinkingText(b, rec), ts, placeholder: readable ? undefined : true, usage: take() });
         setTurn(run, 'in_progress');
         break;
+      }
       case 'text': {
         const text = typeof b.text === 'string' ? b.text : '';
         if (synthetic) {
           // e.g. "No response requested." after an interrupt: not a model turn.
-          pushEvent(run, { kind: 'system', text, ts });
+          pushEvent(run, { kind: 'system', text, ts, usage: take() });
           break;
         }
-        pushEvent(run, { kind: 'assistant', text, ts });
+        pushEvent(run, { kind: 'assistant', text, ts, usage: take() });
         // 'tool_use' means a call follows in this message. null (common in sub-agents) or
         // end_turn: the turn is over unless more blocks arrive, which flips it back.
         if (msg.stop_reason === 'tool_use') setTurn(run, 'in_progress');
@@ -247,21 +260,22 @@ function onAssistant(rec: Record<string, unknown>, run: ParsedRun, x: Transcript
       }
       case 'tool_use':
       case 'server_tool_use':
-        onToolUse(b, run, x, ts);
+        onToolUse(b, run, x, ts, take());
         break;
       case 'web_search_tool_result':
-        onToolResult(b, rec, run, x, ts);
+        onToolResult(b, rec, run, x, ts, take());
         break;
       default:
         // image, document and future block types: nothing to show
         break;
     }
   }
+  if (usage) addUsage(run, usage, ts); // no event carried it
   if (rec.isAbortedMidStream === true) setTurn(run, 'aborted', 'The response was cut off');
   return true;
 }
 
-function onToolUse(b: Record<string, unknown>, run: ParsedRun, x: TranscriptExtra, ts: number | undefined): void {
+function onToolUse(b: Record<string, unknown>, run: ParsedRun, x: TranscriptExtra, ts: number | undefined, usage?: TokenUsage): void {
   const name = typeof b.name === 'string' ? b.name : 'tool';
   const id = typeof b.id === 'string' ? b.id : undefined;
   const kind = claudeToolKind(name);
@@ -275,8 +289,9 @@ function onToolUse(b: Record<string, unknown>, run: ParsedRun, x: TranscriptExtr
     toolKind: filePath ? 'edit' : kind,
     filePath,
     fileOp: filePath ? 'edit' : undefined, // a Write that creates a file is corrected when its result arrives
+    usage,
   });
-  if (id) x.pending.push({ id, name, kind, since: ts, filePath });
+  if (id) x.pending.push({ id, name, kind, since: ts, filePath, edit: filePath ? inputEdit(name, b.input) : undefined });
   if (ASKS_USER.has(name)) setTurn(run, 'waiting_input', name === 'ExitPlanMode' ? 'Waiting for you to approve the plan' : 'Waiting for your answer');
   else setTurn(run, 'in_progress');
 }
@@ -295,24 +310,73 @@ function apiErrorDetail(rec: Record<string, unknown>, text: string): string {
   return detail.length > 160 ? `${detail.slice(0, 157)}…` : detail;
 }
 
-/** Totals per message id: the same usage repeats on every block record, sometimes updated. */
-function countUsage(msg: Record<string, unknown>, run: ParsedRun, x: TranscriptExtra): void {
+/**
+ * The tokens this record adds, counted once per message id: the same usage repeats on every
+ * block record of a message, sometimes updated, so only the growth counts. input_tokens is the
+ * uncached part; the cache figures are separate (Anthropic API usage).
+ */
+function usageDelta(msg: Record<string, unknown>, x: TranscriptExtra): TokenUsage | undefined {
   const u = msg.usage;
-  if (!isObj(u)) return;
-  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-  const input = num(u.input_tokens) + num(u.cache_creation_input_tokens) + num(u.cache_read_input_tokens);
-  const output = num(u.output_tokens);
+  if (!isObj(u)) return undefined;
+  const now: TokenUsage = {
+    input: tokenCount(u.input_tokens),
+    output: tokenCount(u.output_tokens),
+    cacheRead: tokenCount(u.cache_read_input_tokens),
+    cacheWrite: tokenCount(u.cache_creation_input_tokens),
+  };
   const id = typeof msg.id === 'string' ? msg.id : undefined;
-  if (id && id === x.msgId) {
-    run.inputTokens = (run.inputTokens ?? 0) + input - x.msgIn;
-    run.outputTokens = (run.outputTokens ?? 0) + output - x.msgOut;
-  } else {
-    run.inputTokens = (run.inputTokens ?? 0) + input;
-    run.outputTokens = (run.outputTokens ?? 0) + output;
-  }
+  const before = id && id === x.msgId ? x.msgUsage : undefined;
   x.msgId = id;
-  x.msgIn = input;
-  x.msgOut = output;
+  x.msgUsage = now;
+  if (!before) return now;
+  const delta: TokenUsage = {};
+  let grew = false;
+  for (const k of ['input', 'output', 'cacheRead', 'cacheWrite'] as const) {
+    if (now[k] === undefined) continue;
+    delta[k] = Math.max(0, now[k]! - (before[k] ?? 0));
+    if (delta[k]) grew = true;
+  }
+  return grew ? delta : undefined;
+}
+
+/** The change an edit tool's input describes: Edit and MultiEdit snippets, a Write's content. */
+function inputEdit(name: string, input: unknown): DiffText | undefined {
+  if (!isObj(input)) return undefined;
+  const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  const pair = (e: Record<string, unknown>) => {
+    const before = str(e.old_string) ?? str(e.old_str);
+    const after = str(e.new_string) ?? str(e.new_str);
+    return before !== undefined && after !== undefined ? diffTexts(before, after) : undefined;
+  };
+  if (name === 'Write' && typeof input.content === 'string') return capDiff(newFileDiff(input.content));
+  if (name === 'MultiEdit' && Array.isArray(input.edits)) {
+    const parts = input.edits.map((e) => (isObj(e) ? pair(e) : undefined)).filter((d): d is DiffText => !!d && !!d.diff);
+    if (!parts.length) return undefined;
+    return capDiff({ diff: parts.map((d) => d.diff).join('\n'), added: parts.reduce((n, d) => n + d.added, 0), removed: parts.reduce((n, d) => n + d.removed, 0) });
+  }
+  return capDiff(pair(input));
+}
+
+/** Records one successful edit: the result's own patch when it has one, else the call's input. */
+function noteEdit(run: ParsedRun, p: PendingTool, result: unknown, ts: number | undefined): void {
+  const r = isObj(result) ? result : {};
+  const created = r.type === 'create';
+  // A result with structuredPatch is exact (an empty patch is a no-op edit, or a new file whose
+  // lines are all in `content`); older results without one fall back to the call's input.
+  const d = !Array.isArray(r.structuredPatch)
+    ? p.edit
+    : created
+      ? newFileDiff(typeof r.content === 'string' ? r.content : '')
+      : (diffFromHunks(r.structuredPatch) ?? { diff: '', added: 0, removed: 0 });
+  pushChange(run, {
+    ts,
+    filePath: p.filePath!,
+    op: created ? 'create' : 'edit',
+    diff: d?.diff,
+    linesAdded: d?.added,
+    linesRemoved: d?.removed,
+    toolCallId: p.id,
+  });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -365,7 +429,7 @@ function onUserText(texts: string[], meta: boolean, origin: string | undefined, 
   x.pending = []; // a new prompt starts a new turn: earlier unanswered calls are orphans
 }
 
-function onToolResult(b: Record<string, unknown>, rec: Record<string, unknown>, run: ParsedRun, x: TranscriptExtra, ts: number | undefined): void {
+function onToolResult(b: Record<string, unknown>, rec: Record<string, unknown>, run: ParsedRun, x: TranscriptExtra, ts: number | undefined, usage?: TokenUsage): void {
   const id = typeof b.tool_use_id === 'string' ? b.tool_use_id : undefined;
   const i = id ? x.pending.findIndex((p) => p.id === id) : -1;
   const p = i >= 0 ? x.pending.splice(i, 1)[0] : undefined;
@@ -381,16 +445,23 @@ function onToolResult(b: Record<string, unknown>, rec: Record<string, unknown>, 
     toolKind: p?.kind,
     isError,
     durationMs: p?.since && ts ? Math.max(0, ts - p.since) : undefined,
+    usage,
   });
   if (p?.filePath) {
     if (isError) uncountFile(run, p.filePath);
-    else if (isObj(result) && result.type === 'create') markCreated(run, p.filePath, p.id);
+    else {
+      if (isObj(result) && result.type === 'create') markCreated(run, p.filePath, p.id);
+      noteEdit(run, p, result, ts);
+    }
   }
   // Edits made through the shell (Bash `bashEditDiff`), one file_change per file.
   if (isObj(result) && isObj(result.bashEditDiff) && Array.isArray(result.bashEditDiff.files)) {
     for (const f of result.bashEditDiff.files) {
       if (isObj(f) && typeof f.filePath === 'string') {
         pushEvent(run, { kind: 'file_change', text: `Changed by a shell command: ${baseName(f.filePath)}`, ts, filePath: f.filePath, fileOp: 'edit', toolCallId: id, toolName: p?.name });
+        const d = diffFromHunks(f.hunks);
+        const op = f.created === true ? 'create' : f.deleted === true ? 'delete' : 'edit';
+        pushChange(run, { ts, filePath: f.filePath, op, diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: id });
       }
     }
   }

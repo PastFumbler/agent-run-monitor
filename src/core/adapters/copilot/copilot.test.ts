@@ -155,8 +155,12 @@ describe('copilot-vscode parse', () => {
     expect(r.tally.errors).toBe(2); // the 503 and the failed read
     expect(Object.keys(r.files)).toEqual(['c:\\Users\\alex\\projects\\todo-cli\\todo_cli\\main.py']);
     expect(r.files['c:\\Users\\alex\\projects\\todo-cli\\todo_cli\\main.py'].count).toBe(1);
-    expect(r.inputTokens).toBe(18234);
-    expect(r.outputTokens).toBe(912);
+    // Per request, no cache split recorded: cache fields stay unknown.
+    expect(r.usage).toMatchObject({ input: 18234, output: 912 });
+    expect(r.usage!.cacheRead).toBeUndefined();
+    expect(r.events.filter((e) => e.usage).every((e) => e.kind !== 'user')).toBe(true);
+    // The edit group names the file but not the replaced text: line counts unknown, no diff.
+    expect(r.changes).toEqual([{ filePath: 'c:\\Users\\alex\\projects\\todo-cli\\todo_cli\\main.py', op: 'edit', ts: expect.any(Number) }]);
     // The last request was cancelled by the user.
     expect(r.turn).toBe('aborted');
     expect(r.skipped).toBe(0);
@@ -184,7 +188,7 @@ describe('copilot-vscode parse', () => {
     expect(kinds(snap)).toEqual(kinds(log));
     expect(snap.run.events.map((e) => e.text)).toEqual(log.run.events.map((e) => e.text));
     expect(snap.run.turn).toBe('aborted');
-    expect(snap.run.inputTokens).toBe(18234);
+    expect(snap.run.usage).toEqual(log.run.usage);
   });
 
   it('reads an older v2 snapshot with string responses and a workingDirectory', async () => {
@@ -308,8 +312,12 @@ describe('copilot-cli parse', () => {
     expectPaired(st);
     expect(r.tally.errors).toBe(3); // missing file, rejected create, session.error
     expect(r.files).toEqual({ 'C:\\Users\\alex\\projects\\todo-cli\\todo_cli\\main.py': { ops: ['edit'], count: 1, lastTs: Date.parse('2026-10-16T09:00:14.350Z') } });
-    expect(r.inputTokens).toBe(61234);
-    expect(r.outputTokens).toBe(404);
+    // Output per message; input and cache from the shutdown totals (inputTokens includes the cache reads).
+    expect(r.usage).toMatchObject({ input: 61234 - 40210, cacheRead: 40210, cacheWrite: 0, output: 404 });
+    expect(r.events.find((e) => e.kind === 'reasoning')?.usage).toEqual({ output: 96 }); // on the message's first event
+    // The applied edit, with the diff the CLI stored; the rejected create is not a change.
+    expect(r.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved])).toEqual([['C:\\Users\\alex\\projects\\todo-cli\\todo_cli\\main.py', 'edit', 2, 1]]);
+    expect(r.changes![0].diff).toBe(['@@ -40,2 +40,3 @@', ' @cli.command()', '-def complete(task_id):', '+@click.option("--done", is_flag=True)', '+def complete(task_id, done):'].join('\n'));
     // The user interrupted the last turn; the "request aborted" error belongs to that.
     expect(r.turn).toBe('aborted');
     expect(r.skipped).toBe(0);
@@ -365,7 +373,8 @@ describe('copilot-cli parse', () => {
     expect(second.offset).toBe(full.length);
     expect(second.run.events).toEqual(once.run.events);
     expect(second.run.turn).toBe(once.run.turn);
-    expect(second.run.outputTokens).toBe(once.run.outputTokens);
+    expect(second.run.usage).toEqual(once.run.usage);
+    expect(second.run.changes).toEqual(once.run.changes);
     expect(JSON.parse(JSON.stringify(second.extra))).toEqual(second.extra); // plain data only
   });
 
@@ -409,8 +418,9 @@ describe('copilot-cli parse', () => {
     const path = join(tmp(), 'events.jsonl');
     writeFileSync(path, [start, evt('user.message', { content: 'hi', source: 'user' }, 1), shutdown(2, 100, 10), evt('session.resume', { selectedModel: 'gpt-5.1' }, 3), evt('user.message', { content: 'more', source: 'user' }, 4), shutdown(5, 250, 30)].join('\n') + '\n');
     const st = await cli.parse(refFor(cli, path), undefined, ctx());
-    expect(st.run.inputTokens).toBe(250);
-    expect(st.run.outputTokens).toBe(30);
+    expect(st.run.usage).toMatchObject({ input: 250, output: 30 });
+    // The growth goes to each shutdown's day: 100 then 150 more.
+    expect(Object.values(st.run.usage!.byDay!).reduce((n, d) => n + (d.input ?? 0), 0)).toBe(250);
     expect(st.run.turn).toBe('completed');
   });
 

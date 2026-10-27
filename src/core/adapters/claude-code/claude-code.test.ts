@@ -43,7 +43,7 @@ function comparable(st: ParseState) {
   const r = st.run;
   return {
     events: r.events, title: r.title, model: r.model, turn: r.turn, turnDetail: r.turnDetail, tally: r.tally,
-    files: r.files, inputTokens: r.inputTokens, outputTokens: r.outputTokens, projectPath: r.projectPath,
+    files: r.files, usage: r.usage, changes: r.changes, hasReasoning: r.hasReasoning, projectPath: r.projectPath,
     gitBranch: r.gitBranch, openTool: r.openTool, skipped: r.skipped, offset: st.offset,
   };
 }
@@ -174,9 +174,13 @@ describe('claude-code parse: main session', () => {
     expect(r.gitBranch).toBe('main');
     expect(r.startedAt).toBe(Date.parse('2026-03-14T09:12:03.000Z')); // first record, a queue operation
     expect(r.lastEventAt).toBe(Date.parse('2026-03-14T09:16:30.584Z'));
-    // 12 API messages, usage counted once per message id.
-    expect(r.outputTokens).toBe(2025);
-    expect(r.inputTokens).toBe(12 * (2 + 900 + 20000));
+    // 12 API messages, usage counted once per message id, cache reads and writes kept apart.
+    expect(r.usage).toMatchObject({ input: 12 * 2, output: 2025, cacheRead: 12 * 20000, cacheWrite: 12 * 900 });
+    expect(Object.values(r.usage!.byDay!).reduce((n, d) => n + (d.output ?? 0), 0)).toBe(2025);
+    // Per message: on the first event of each message only.
+    const tagged = r.events.filter((e) => e.usage);
+    expect(tagged).toHaveLength(12);
+    expect(tagged.reduce((n, e) => n + (e.usage!.output ?? 0), 0)).toBe(2025);
     expect(r.readError).toBeUndefined();
     expect(r.parentPath).toBeUndefined();
   });
@@ -221,6 +225,31 @@ describe('claude-code parse: main session', () => {
     expect(st.run.events.some((e) => e.kind === 'system' && e.filePath?.endsWith('cli.py'))).toBe(true);
   });
 
+  it('records each successful edit with its diff, from the result patch', () => {
+    const store = 'C:\\Users\\alex\\code\\todo-cli\\todo\\store.py';
+    const dates = 'C:\\Users\\alex\\code\\todo-cli\\todo\\dates.py';
+    const changes = st.run.changes!;
+    // The failed Edit of cli.py is not a change.
+    expect(changes.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved])).toEqual([
+      [store, 'edit', 1, 0],
+      [dates, 'create', 5, 0],
+    ]);
+    expect(changes[0].ts).toBe(Date.parse('2026-03-14T09:12:17.628Z'));
+    expect(changes[0].toolCallId).toBe('toolu_01jeC0tsgcDKIADVDnwVXUoi');
+    expect(changes[0].diff).toBe('@@ -6,3 +6,4 @@\n     id: int\n     title: str\n     done: bool = False\n+    due: str | None = None');
+    expect(changes[1].diff!.split('\n')[0]).toBe('@@ -0,0 +1,5 @@');
+    const detail = toDetail(adapterRef(), st, Date.parse('2026-03-15T00:00:00Z'), false);
+    expect(detail.changes).toEqual(changes);
+    expect(detail.totalChanges).toBe(2);
+  });
+
+  it('marks thinking stored without its text as a placeholder', () => {
+    const thoughts = st.run.events.filter((e) => e.kind === 'reasoning');
+    expect(thoughts.filter((e) => e.placeholder)).toHaveLength(3);
+    expect(thoughts.find((e) => !e.placeholder)?.text).toMatch(/^The add command builds a Task/);
+    expect(st.run.hasReasoning).toBe(true);
+  });
+
   it('reads a finished turn as idle, then done', () => {
     expect(st.run.turn).toBe('completed');
     expect(st.run.openTool).toBeUndefined();
@@ -244,8 +273,8 @@ describe('claude-code parse: child runs', () => {
     expect(r.projectName).toBe('todo-cli');
     expect(kinds(st)).toEqual({ user: 1, reasoning: 1, assistant: 1, tool_call: 2, tool_result: 1 });
     expect(r.events.find((e) => e.kind === 'reasoning')?.text).toContain('1.8 s');
-    expect(r.outputTokens).toBe(95 + 60); // the repeated message counted once, at its last value
-    expect(r.inputTokens).toBe(2 * (3 + 500 + 12000));
+    expect(r.usage).toMatchObject({ output: 95 + 60, input: 2 * 3, cacheWrite: 2 * 500, cacheRead: 2 * 12000 }); // the repeated message counted once, at its last value
+    expect(r.hasReasoning).toBeFalsy(); // its one thinking block was stored without text
     expect(r.turn).toBe('in_progress');
     expect(r.openTool).toEqual({ name: 'Bash', kind: 'run', since: Date.parse('2026-03-14T10:02:05.000Z') });
     const j = judgeStatus(r, r.lastEventAt!, r.lastEventAt! + 30_000);

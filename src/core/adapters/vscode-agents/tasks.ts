@@ -21,7 +21,9 @@
 import { dirname, join } from 'node:path';
 import type { FileOp, ToolKind } from '@shared/schema';
 import { emptyRun, type OpenTool, type ParsedRun, type ParseState, type SessionRef, type TurnState } from '../../adapter';
+import { countDiffLines, diffFromSearchReplace, newFileDiff, pushChange, splitFileDiffs, type DiffText } from '../../changes';
 import { baseName, clip, makeTitle, pushEvent, toMs, toolFilePath, toolInputSummary } from '../../events';
+import { addUsage } from '../../usage';
 import { emptyIndex, indexApiHistory, type ApiIndex, type ApiTool } from './api-history';
 import {
   fileOpOf,
@@ -43,6 +45,14 @@ type TaskAgent = 'cline' | 'roo-code';
 /** API tools whose ui counterpart is a message, not a tool card; matched silently. */
 const SILENT = /^(attempt_completion|ask_followup_question|ask_question|plan_mode_respond|act_mode_respond|condense|summarize_task|report_bug)$/;
 const UI_EDITS = /^(editedExistingFile|appliedDiff|newFileCreated|fileDeleted)$/;
+
+/** An edit card's body: SEARCH/REPLACE blocks (current Cline and Roo) or a unified patch (older Cline). */
+function cardDiff(body: string): DiffText | undefined {
+  const sr = diffFromSearchReplace(body);
+  if (sr) return sr;
+  const part = splitFileDiffs(body)[0];
+  return part ? { diff: part.diff, ...countDiffLines(part.diff) } : undefined;
+}
 
 const ERROR_SAYS = new Set(['error', 'diff_error', 'clineignore_error', 'rooignore_error', 'command_permission_denied', 'condense_context_error']);
 const QUIET_SAYS = new Set(['checkpoint_created', 'checkpoint_saved', 'checkpoint_restored', 'api_req_finished', 'deleted_api_reqs']);
@@ -110,9 +120,6 @@ class TaskWalker {
   private lastMcp: Pending | undefined;
   private lastBrowser: Pending | undefined;
   private userSeen = false;
-  private tokensIn = 0;
-  private tokensOut = 0;
-  private sawUsage = false;
   model: string | undefined;
   /** Every API tool before this index is consumed (keeps pairing linear on long tasks). */
   private low = 0;
@@ -135,10 +142,6 @@ class TaskWalker {
   walk(records: Obj[]): void {
     records.forEach((m, i) => this.record(m, i === records.length - 1));
     this.flushApiTools(this.api.tools.length);
-    if (this.sawUsage) {
-      this.run.inputTokens = this.tokensIn;
-      this.run.outputTokens = this.tokensOut;
-    }
     if (this.open) this.run.openTool = { name: this.open.name, kind: this.open.kind, since: this.open.since };
   }
 
@@ -291,17 +294,17 @@ class TaskWalker {
     if (typeof m.reasoning === 'string' && m.reasoning.trim()) pushEvent(this.run, { kind: 'reasoning', text: m.reasoning, ts });
   }
 
-  /** `api_req_started` text is ClineApiReqInfo JSON: token counts, cost and why it stopped. */
+  /**
+   * `api_req_started` text is ClineApiReqInfo JSON: token counts, cost and why it stopped. The
+   * counts are kept as recorded: tokensIn is the provider's own input figure (for Anthropic it
+   * leaves out the cache reads and writes, which are counted apart).
+   */
   private apiRequest(text: string, ts: number | undefined): void {
     this.open = undefined; // a new request means the previous tool step is over
     const j = parseJsonText(text);
     if (!j) return;
-    const tin = num(j.tokensIn);
-    const tout = num(j.tokensOut);
-    if (tin != null || tout != null) {
-      this.sawUsage = true;
-      this.tokensIn += tin ?? 0;
-      this.tokensOut += tout ?? 0;
+    if (num(j.tokensIn) != null || num(j.tokensOut) != null) {
+      addUsage(this.run, { input: num(j.tokensIn), output: num(j.tokensOut), cacheRead: num(j.cacheReads), cacheWrite: num(j.cacheWrites) }, ts);
     }
     const cancel = str(j.cancelReason);
     if (cancel === 'user_cancelled') pushEvent(this.run, { kind: 'system', text: 'Request cancelled by the user', ts });
@@ -318,7 +321,16 @@ class TaskWalker {
     const isEdit = UI_EDITS.test(uiName) || kind === 'edit';
     const body = isEdit ? str(j.diff) ?? str(j.content) : undefined;
     const summary = path ? (body ? `${path}\n${body}` : path) : toolInputSummary(api?.input ?? j);
-    this.call(api?.name ?? uiName, kind, summary, ts, api, isEdit ? path : undefined, fileOpOf(uiName));
+    const p = this.call(api?.name ?? uiName, kind, summary, ts, api, isEdit ? path : undefined, fileOpOf(uiName));
+    // An edit counts once it ran: its API result is in and not an error (or, without the API
+    // history, the card is a `say`, not an approval `ask`).
+    const result = api ? this.api.results.get(api.id) : undefined;
+    const applied = api ? !!result && !result.isError : m.type === 'say';
+    if (isEdit && path && applied) {
+      const op = fileOpOf(uiName);
+      const d = op === 'create' && str(j.content) !== undefined ? newFileDiff(str(j.content)!) : body ? cardDiff(body) : undefined;
+      pushChange(this.run, { ts, filePath: path, op, diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: p.id });
+    }
   }
 
   private command(text: string, ts: number | undefined, m: Obj): void {

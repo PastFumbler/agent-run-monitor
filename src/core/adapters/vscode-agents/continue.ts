@@ -14,9 +14,12 @@
 // - workspaceDirectory is a VS Code URI (file:///c%3A/...) from the extension, a plain path from the CLI.
 // - Tool approval state lives in history[].toolCallStates[].status: `generated` = awaiting approval.
 
+import type { TokenUsage } from '@shared/schema';
 import type { ParsedRun, ParseState, SessionRef, TurnState } from '../../adapter';
 import { emptyRun } from '../../adapter';
+import { diffTexts, newFileDiff, pushChange } from '../../changes';
 import { baseName, makeTitle, pushEvent, toMs, toolInputSummary } from '../../events';
+import { addUsageSince, setUsageTotal } from '../../usage';
 import { blockText, fileOpOf, isObj, kindOf, num, readTranscript, str, UNRECOGNISED, unchanged, uriToPath, type Obj } from './common';
 
 const DEFAULT_TITLES = new Set(['New Session', 'Untitled Session']);
@@ -55,7 +58,7 @@ export async function parseContinue(ref: SessionRef, prev: ParseState | undefine
   if (history.length > 0 && recognised === 0) run.readError = UNRECOGNISED;
 
   run.model = str(s?.chatModelTitle) ?? promptLogModel(items);
-  usage(run, s!, items);
+  usage(run, s!);
   setTurn(run, items, ref.mtimeMs);
   return st;
 }
@@ -73,9 +76,11 @@ function walk(run: ParsedRun, items: Obj[]): number {
     // Reasoning the GUI collected separately from the message (startAt/endAt are the only times saved).
     const r = isObj(h.reasoning) ? h.reasoning : undefined;
     const ts = toMs(r?.startAt);
+    const mark = run.tally.events;
     if (r && typeof r.text === 'string' && r.text.trim()) pushEvent(run, { kind: 'reasoning', text: r.text, ts });
     if (message(run, m, states, ts)) recognised++;
     else run.skipped++;
+    if (isObj(m.usage)) addUsageSince(run, mark, usageOf(m.usage), ts);
   }
   return recognised;
 }
@@ -88,7 +93,7 @@ function message(run: ParsedRun, m: Obj, states: Map<string, Obj>, ts: number | 
       return true;
     case 'thinking':
       if (text.trim()) pushEvent(run, { kind: 'reasoning', text, ts });
-      else if (m.redactedThinking) pushEvent(run, { kind: 'reasoning', text: '(reasoning hidden by the provider)', ts });
+      else if (m.redactedThinking) pushEvent(run, { kind: 'reasoning', text: '(reasoning hidden by the provider)', ts, placeholder: true });
       return true;
     case 'system':
       if (text.trim()) pushEvent(run, { kind: 'system', text, ts });
@@ -127,6 +132,14 @@ function toolCall(run: ParsedRun, c: Obj, states: Map<string, Obj>, ts: number |
     toolKind: kind,
     ...(path ? { filePath: path, fileOp: fileOpOf(name) } : {}),
   });
+  // A change once the call is done (older files keep no state: counted like the files table).
+  if (!path || (state && state.status !== 'done')) return;
+  const a = isObj(args) ? args : {};
+  const before = str(a.old_string);
+  const after = str(a.new_string);
+  const contents = str(a.contents);
+  const d = before !== undefined && after !== undefined ? diffTexts(before, after) : contents !== undefined && fileOpOf(name) === 'create' ? newFileDiff(contents) : undefined;
+  pushChange(run, { ts, filePath: path, op: fileOpOf(name), diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: id });
 }
 
 /** Continue's built-in tools name their arguments filepath, dirPath, command, query, pattern, url. */
@@ -167,27 +180,20 @@ function promptLogModel(items: Obj[]): string | undefined {
   return undefined;
 }
 
-function usage(run: ParsedRun, s: Obj, items: Obj[]): void {
+/**
+ * Continue's Usage {promptTokens, completionTokens, promptTokensDetails?{cachedTokens,
+ * cacheWriteTokens}}, kept as recorded (whether promptTokens includes the cache depends on the
+ * provider).
+ */
+function usageOf(u: Obj): TokenUsage {
+  const d = isObj(u.promptTokensDetails) ? u.promptTokensDetails : {};
+  return { input: num(u.promptTokens), output: num(u.completionTokens), cacheRead: num(d.cachedTokens), cacheWrite: num(d.cacheWriteTokens) };
+}
+
+/** The session's usage, when recorded, wins over the per-message sum (growth has no known day). */
+function usage(run: ParsedRun, s: Obj): void {
   const u = isObj(s.usage) ? s.usage : undefined;
-  if (u && (num(u.promptTokens) != null || num(u.completionTokens) != null)) {
-    run.inputTokens = num(u.promptTokens) ?? 0;
-    run.outputTokens = num(u.completionTokens) ?? 0;
-    return;
-  }
-  let tin = 0;
-  let tout = 0;
-  let saw = false;
-  for (const h of items) {
-    const mu = isObj(h.message) && isObj(h.message.usage) ? h.message.usage : undefined;
-    if (!mu) continue;
-    saw = true;
-    tin += num(mu.promptTokens) ?? 0;
-    tout += num(mu.completionTokens) ?? 0;
-  }
-  if (saw) {
-    run.inputTokens = tin;
-    run.outputTokens = tout;
-  }
+  if (u && (num(u.promptTokens) != null || num(u.completionTokens) != null)) setUsageTotal(run, usageOf(u));
 }
 
 // ---------------------------------------------------------------- turn state

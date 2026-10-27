@@ -3,9 +3,11 @@
 // and both describe file edits with the same `FileDiff` shape (Qwen forked Gemini CLI in 2025).
 
 import { posix, win32 } from 'node:path';
-import type { FileOp, ToolKind } from '@shared/schema';
-import type { Env } from '../../adapter';
+import type { FileOp, TokenUsage, ToolKind } from '@shared/schema';
+import type { Env, ParsedRun } from '../../adapter';
+import { countDiffLines, pushChange, splitFileDiffs } from '../../changes';
 import { isObj, MAX_TEXT, textOf, toolKind } from '../../events';
+import { tokenCount } from '../../usage';
 
 export type Part = Record<string, unknown>;
 
@@ -103,6 +105,29 @@ export function resultText(resultDisplay: unknown, response: { text: string }): 
   return response.text;
 }
 
+/**
+ * Gemini API token counts as TokenUsage: the prompt count includes the cached part (reported
+ * apart), thoughts are billed as output, tool-use prompt tokens are input.
+ */
+export function geminiUsage(prompt: unknown, cached: unknown, output: unknown, thoughts: unknown, tool: unknown): TokenUsage {
+  const p = tokenCount(prompt);
+  const c = tokenCount(cached);
+  const o = tokenCount(output);
+  const t = tokenCount(thoughts);
+  return {
+    input: p === undefined ? undefined : Math.max(0, p - (c ?? 0)) + (tokenCount(tool) ?? 0),
+    cacheRead: c,
+    output: o === undefined && t === undefined ? undefined : (o ?? 0) + (t ?? 0),
+  };
+}
+
+/** Records one successful edit, with the FileDiff's hunks and counts when the tool left one. */
+export function noteFileChange(run: ParsedRun, diff: FileDiffInfo | undefined, filePath: string, fileOp: FileOp, ts: number | undefined, id: string | undefined): void {
+  const part = diff ? splitFileDiffs(diff.diff)[0] : undefined;
+  const n = part ? countDiffLines(part.diff) : undefined;
+  pushChange(run, { ts, filePath, op: fileOp, diff: part?.diff, linesAdded: n?.added, linesRemoved: n?.removed, toolCallId: id });
+}
+
 /** File op for an edit tool that left no FileDiff. */
 export function opForTool(name: string | undefined): FileOp {
   return name === 'delete_file' ? 'delete' : 'edit';
@@ -137,8 +162,4 @@ export function slim(v: unknown, depth = 0, max = MAX_TEXT): unknown {
 
 export function str(v: unknown): string | undefined {
   return typeof v === 'string' && v ? v : undefined;
-}
-
-export function num(v: unknown): number {
-  return typeof v === 'number' && Number.isFinite(v) ? v : 0;
 }

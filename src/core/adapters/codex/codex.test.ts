@@ -8,6 +8,8 @@ import { safeParse } from '../../build';
 import { judgeStatus } from '../../status';
 import { adapters, codexAdapter } from './index';
 import { findThreadFile, homeAbove } from './paths';
+import { patchFiles } from './tools';
+import { dayKey } from '@shared/usage';
 
 const FIX = resolve(__dirname, '../../../../test/fixtures/codex');
 const LEGACY = 'rollout-2026-10-20T16-03-12-019a01f2-6c3d-7e41-b5a2-3c4d5e6f7a81.jsonl';
@@ -165,8 +167,17 @@ describe('codex adapter: parsing real-format fixtures', () => {
     expect(r.files).toEqual({
       'C:\\Users\\alex\\code\\todo-cli\\src\\todo_cli\\cli.py': { ops: ['edit'], count: 2, lastTs: Date.parse('2026-10-20T14:03:26.977Z') },
     });
-    expect(r.inputTokens).toBe(31840);
-    expect(r.outputTokens).toBe(1490);
+    // Running totals; input_tokens includes the cached part, which is reported apart.
+    expect(r.usage).toMatchObject({ input: 31840 - 26880, cacheRead: 26880, cacheWrite: 0, output: 1490 });
+    expect(r.usage!.byDay).toEqual({ [dayKey(Date.parse('2026-10-20T14:05:00Z'))]: { input: 31840 - 26880, cacheRead: 26880, cacheWrite: 0, output: 1490 } });
+    // Each applied patch is a change with its unified diff and exact line counts.
+    const cli = 'C:\\Users\\alex\\code\\todo-cli\\src\\todo_cli\\cli.py';
+    expect(r.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved, c.toolCallId])).toEqual([
+      [cli, 'edit', 2, 1, 'call_D4f5G6h7J8k9L0z1X2c3V4b5'],
+      [cli, 'edit', 1, 1, 'call_H8j9K0l1Z2x3C4v5B6n7M8q9'],
+    ]);
+    expect(r.changes![1].diff).toBe('@@ -12,1 +12,1 @@\n-    items = store.load()\n+    items = [i for i in store.load() if i.done] if args.done else store.load()');
+    expect(r.changes![0].ts).toBe(Date.parse('2026-10-20T14:03:19.702Z'));
     expect(r.turn).toBe('error');
     expect(r.turnDetail).toMatch(/overloaded/);
     expect(r.openTool).toBeUndefined();
@@ -201,8 +212,12 @@ describe('codex adapter: parsing real-format fixtures', () => {
     expect(mcp).toMatchObject({ toolName: 'mcp__tracker__list_tasks', toolKind: 'other', text: '{"status":"open"}' });
     const failed = r.events.filter((e) => e.kind === 'tool_result' && e.isError);
     expect(failed.map((e) => e.toolCallId)).toEqual(['call_U5i6O7p8A9s0D1f2G3h4J5k6']);
-    expect(r.inputTokens).toBe(29770);
-    expect(r.outputTokens).toBe(1150);
+    expect(r.usage).toMatchObject({ input: 29770 - 25600, cacheRead: 25600, cacheWrite: 0, output: 1150 });
+    expect(r.changes!.map((c) => [c.filePath.split('\\').pop(), c.op, c.linesAdded, c.linesRemoved])).toEqual([
+      ['commands.md', 'create', 3, 0],
+      ['cli.py', 'edit', 1, 1],
+    ]);
+    expect(r.changes![0].diff).toBe('@@ -0,0 +1,3 @@\n+# Commands\n+\n+- `todo remove` (alias `rm`)');
     expect(r.turn).toBe('completed');
     expect(r.skipped).toBe(0);
   });
@@ -218,8 +233,10 @@ describe('codex adapter: parsing real-format fixtures', () => {
       ['shell_command', 'run'],
       ['tracker__list_tasks', 'other'],
     ]);
-    expect(r.inputTokens).toBe(14210);
-    expect(r.outputTokens).toBe(522);
+    // No cache_write_input_tokens in this era: reported as unknown, not 0.
+    expect(r.usage).toMatchObject({ input: 14210 - 11008, cacheRead: 11008, output: 522 });
+    expect(r.usage!.cacheWrite).toBeUndefined();
+    expect(r.changes ?? []).toEqual([]);
     // The stream error was followed by an answer and task_complete: the turn finished.
     expect(r.turn).toBe('completed');
   });
@@ -470,11 +487,11 @@ describe('codex adapter: incremental parsing', () => {
       expect(second.run.events).toEqual(once.run.events);
       expect(second.run.tally).toEqual(once.run.tally);
       expect(second.run.files).toEqual(once.run.files);
-      expect([second.run.turn, second.run.title, second.run.inputTokens, second.run.outputTokens, second.run.model]).toEqual([
+      expect([second.run.turn, second.run.title, second.run.usage, second.run.changes, second.run.model]).toEqual([
         once.run.turn,
         once.run.title,
-        once.run.inputTokens,
-        once.run.outputTokens,
+        once.run.usage,
+        once.run.changes,
         once.run.model,
       ]);
       expect(second.offset).toBe(full.length);
@@ -536,5 +553,38 @@ describe('codex adapter: status', () => {
     const j = judgeStatus(r, r.lastEventAt!, r.lastEventAt! + 2 * 60_000);
     expect(j.status).toBe('waiting');
     expect(j.inferred).toBeUndefined();
+  });
+});
+
+describe('codex apply_patch bodies (older files without patch_apply_end)', () => {
+  it("reads each file's hunks as its diff, with exact counts", () => {
+    const body = [
+      '*** Begin Patch',
+      '*** Update File: src/app.py',
+      '@@ def main():',
+      '-    run()',
+      '+    run(fast=True)',
+      '+    log()',
+      '*** Add File: notes.md',
+      '+# Notes',
+      '+todo',
+      '*** Delete File: old.txt',
+      '*** Update File: a.py',
+      '*** Move to: b.py',
+      '@@',
+      '-x = 1',
+      '+x = 2',
+      '*** End Patch',
+    ].join('\n');
+    const files = patchFiles(body);
+    expect(files.map((f) => [f.path, f.op, f.diff?.added, f.diff?.removed, !!f.moved])).toEqual([
+      ['src/app.py', 'edit', 2, 1, false],
+      ['notes.md', 'create', 2, 0, false],
+      ['old.txt', 'delete', undefined, undefined, false],
+      ['a.py', 'delete', undefined, undefined, true],
+      ['b.py', 'create', 1, 1, false],
+    ]);
+    expect(files[0].diff?.diff).toBe(['@@ def main():', '-    run()', '+    run(fast=True)', '+    log()'].join('\n'));
+    expect(files[1].diff?.diff).toBe(['@@', '+# Notes', '+todo'].join('\n'));
   });
 });

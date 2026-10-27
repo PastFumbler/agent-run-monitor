@@ -291,8 +291,14 @@ describe('parse: OpenCode 2.x (session_v2)', () => {
     expect(run.turn).toBe('error');
     expect(run.turnDetail).toBe('API error 529: Overloaded');
     expect(run.openTool).toBeUndefined();
-    expect(run.inputTokens).toBe(6125 + 56810 + 2610);
-    expect(run.outputTokens).toBe(590 + 118);
+    // The session totals, cache apart (OpenCode keeps it out of input); reasoning counts as output.
+    expect(run.usage).toMatchObject({ input: 6125, cacheRead: 56810, cacheWrite: 2610, output: 590 + 118 });
+    // The applied edit and the new file, with their patches; the failed edit is not a change.
+    expect(run.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved])).toEqual([
+      ['C:\\Users\\alex\\code\\todo-cli\\todo_cli\\dates.py', 'edit', 1, 1],
+      ['C:\\Users\\alex\\code\\todo-cli\\tests\\test_single_digit_due.py', 'create', 4, 0],
+    ]);
+    expect(run.changes![0].diff!.startsWith('@@ -1,2 +1,2 @@')).toBe(true);
     expect(run.startedAt).toBe(1792487520000);
     expect(run.lastEventAt).toBe(1792487604707);
     expect(judgeStatus(run, ref.mtimeMs, 1792487604707 + 3600_000)).toMatchObject({ status: 'failed', detail: 'API error 529: Overloaded' });
@@ -443,8 +449,9 @@ function expectV1Session(st: ParseState, projectPath: string) {
   expect(run.files).toEqual({ '/home/alex/code/todo-cli/todo_cli/cli.py': { ops: ['edit'], count: 1, lastTs: 1770041114700 } });
   expect(run.events.at(-1)).toMatchObject({ kind: 'system', text: 'Interrupted' });
   expect(run.turn).toBe('aborted');
-  expect(run.inputTokens).toBe(5970 + 46460 + 2400);
-  expect(run.outputTokens).toBe(511 + 96);
+  expect(run.usage).toMatchObject({ input: 5970, cacheRead: 46460, cacheWrite: 2400, output: 511 + 96 });
+  expect(run.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved, c.ts])).toEqual([['/home/alex/code/todo-cli/todo_cli/cli.py', 'edit', 1, 1, expect.any(Number)]]);
+  expect(run.changes![0].diff).toBe(['@@ -2,3 +2,3 @@', ' ', ' def add(args):', '-    store.add(args.title)', '+    store.add(args.title, priority=args.priority)'].join('\n'));
   expect(run.startedAt).toBe(1770041110000);
   expect(run.lastEventAt).toBe(V1_END);
   expect(judgeStatus(run, V1_END, V1_END + 600_000).status).toBe('done');
@@ -511,8 +518,7 @@ describe('parse: OpenCode <= 1.1 (storage/ JSON files)', () => {
     const step = { id: 'prt_c1eac0df8010zzzzzzzzzzzzzz', type: 'step-finish', reason: 'tool-calls', cost: 0, tokens: { input: 100, output: 10, reasoning: 5, cache: { read: 1000, write: 0 } } };
     writeFileSync(join(ref.hint!.storage, 'part', msg, `${step.id}.json`), JSON.stringify(step));
     const run = (await parseRef(ref)).run;
-    expect(run.inputTokens).toBe(5970 + 46460 + 2400 + 100 + 1000);
-    expect(run.outputTokens).toBe(511 + 96 + 10 + 5);
+    expect(run.usage).toMatchObject({ input: 5970 + 100, cacheRead: 46460 + 1000, cacheWrite: 2400, output: 511 + 96 + 10 + 5 });
   });
 
   it('re-reads only when its files change', async () => {

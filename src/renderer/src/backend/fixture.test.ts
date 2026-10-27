@@ -38,6 +38,50 @@ describe('demo data', () => {
     expect(unreadable.summary.readError).toBeTruthy();
   });
 
+  it('has token usage per message, with per-day buckets, and "not reported" runs', () => {
+    const runs = buildDemo('demo', NOW).filter((r) => r.events.length);
+    for (const r of runs) {
+      const u = r.summary.usage;
+      if (r.summary.agent === 'cursor') {
+        expect(u, r.summary.id).toBeUndefined(); // the source records none: never 0
+        continue;
+      }
+      expect(u?.output, r.summary.id).toBeGreaterThan(0);
+      const days = Object.values(u!.byDay!).reduce((n, d) => n + (d.output ?? 0), 0);
+      expect(days).toBe(u!.output);
+      expect(r.events.reduce((n, e) => n + (e.usage?.output ?? 0), 0)).toBe(u!.output);
+    }
+    expect(runs.some((r) => r.summary.usage?.cacheRead !== undefined)).toBe(true);
+    expect(runs.some((r) => r.summary.usage && r.summary.usage.cacheRead === undefined)).toBe(true);
+  });
+
+  it('has code changes with diffs and line counts, and some with unknown counts', () => {
+    const runs = buildDemo('demo', NOW);
+    const changes = runs.flatMap((r) => detailOf(r).changes.map((c) => ({ c, agent: r.summary.agent })));
+    expect(changes.length).toBeGreaterThan(10);
+    for (const { c, agent } of changes) {
+      if (agent === 'copilot-vscode') {
+        expect([c.diff, c.linesAdded, c.linesRemoved]).toEqual([undefined, undefined, undefined]);
+        continue;
+      }
+      const plus = c.diff!.split('\n').filter((l) => l.startsWith('+')).length;
+      const minus = c.diff!.split('\n').filter((l) => l.startsWith('-')).length;
+      expect([plus, minus]).toEqual([c.linesAdded, c.linesRemoved]);
+    }
+    expect(changes.some(({ agent }) => agent === 'copilot-vscode')).toBe(true);
+    for (const r of runs) expect(detailOf(r).totalChanges).toBe(r.changes.length);
+  });
+
+  it('marks hidden reasoning as placeholders and flags runs with readable reasoning', () => {
+    const runs = buildDemo('demo', NOW);
+    const claude = runs.filter((r) => r.summary.agent === 'claude-code');
+    expect(claude.some((r) => r.events.some((e) => e.kind === 'reasoning' && e.placeholder))).toBe(true);
+    for (const r of runs) {
+      expect(r.summary.hasReasoning).toBe(r.events.some((e) => e.kind === 'reasoning' && !e.placeholder));
+    }
+    expect(runs.some((r) => r.summary.hasReasoning)).toBe(true);
+  });
+
   it('is synthetic: only the made-up /home/demo tree', () => {
     for (const r of buildDemo('many', NOW)) {
       expect(r.summary.sourcePath.startsWith('/home/demo/')).toBe(true);

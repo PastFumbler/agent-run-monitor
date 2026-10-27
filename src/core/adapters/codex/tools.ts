@@ -2,7 +2,8 @@
 // header parsing. Provenance (see records.ts header): checked against openai/codex source, not a
 // real installation.
 
-import type { FileOp, ToolKind } from '@shared/schema';
+import type { ToolKind } from '@shared/schema';
+import { countDiffLines, diffTexts, newFileDiff, type PatchFile } from '../../changes';
 import { isObj, textOf, toolKind } from '../../events';
 
 /** Codex-specific tool names that the shared classifier does not know. */
@@ -95,41 +96,32 @@ export function looksLikePatchFailure(text: string): boolean {
   return /verification failed|failed to apply|patch rejected|^error:/im.test(text);
 }
 
-export interface PatchFile {
-  path: string;
-  op: FileOp;
-}
+export { applyPatchFiles as patchFiles, type PatchFile } from '../../changes';
 
-/** Reads `*** Add|Update|Delete File:` and `*** Move to:` headers from an apply_patch body. [SRC] */
-export function patchFiles(input: unknown): PatchFile[] {
-  if (typeof input !== 'string') return [];
-  const out: PatchFile[] = [];
-  for (const line of input.split(/\r?\n/)) {
-    const m = /^\*\*\* (Add|Update|Delete) File: (.+)$/.exec(line);
-    if (m) {
-      out.push({ path: m[2].trim(), op: m[1] === 'Add' ? 'create' : m[1] === 'Delete' ? 'delete' : 'edit' });
-      continue;
-    }
-    const mv = /^\*\*\* Move to: (.+)$/.exec(line);
-    if (mv && out.length) {
-      out[out.length - 1].op = 'delete';
-      out.push({ path: mv[1].trim(), op: 'create' });
-    }
-  }
-  return out;
-}
-
-/** patch_apply_end / FileChange `changes` map: absolute path -> {type:add|delete|update, move_path?}. [SRC] */
+/**
+ * patch_apply_end / FileChange `changes` map: absolute path -> {type:add|delete|update,
+ * unified_diff? (update), content? (add, delete), move_path?}. [SRC]
+ */
 export function changeFiles(changes: unknown): PatchFile[] {
   if (!isObj(changes)) return [];
   const out: PatchFile[] = [];
   for (const [path, ch] of Object.entries(changes)) {
-    const type = isObj(ch) ? ch.type : undefined;
-    const move = isObj(ch) && typeof ch.move_path === 'string' && ch.move_path ? ch.move_path : undefined;
+    const c = isObj(ch) ? ch : {};
+    const type = c.type;
+    const move = typeof c.move_path === 'string' && c.move_path ? c.move_path : undefined;
+    const content = typeof c.content === 'string' ? c.content : undefined;
+    const diff =
+      typeof c.unified_diff === 'string'
+        ? { diff: c.unified_diff.replace(/\r?\n$/, ''), ...countDiffLines(c.unified_diff) }
+        : content !== undefined && type === 'add'
+          ? newFileDiff(content)
+          : content !== undefined && type === 'delete'
+            ? diffTexts(content, '', 1)
+            : undefined;
     if (move) {
-      out.push({ path, op: 'delete' }, { path: move, op: 'create' });
+      out.push({ path, op: 'delete', moved: true }, { path: move, op: 'create', diff });
     } else {
-      out.push({ path, op: type === 'add' ? 'create' : type === 'delete' ? 'delete' : 'edit' });
+      out.push({ path, op: type === 'add' ? 'create' : type === 'delete' ? 'delete' : 'edit', diff });
     }
   }
   return out;

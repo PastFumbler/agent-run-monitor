@@ -1,6 +1,7 @@
 // Helpers shared by the three Cursor stores: tool names, prompt wrappers, paths and URIs.
 
 import type { FileOp, ToolKind } from '@shared/schema';
+import { countDiffLines, diffTexts, newFileDiff, type DiffText } from '../../changes';
 import { baseName, isObj, toolFilePath, toolInputSummary, toolKind } from '../../events';
 
 /** Cursor tool names the shared classifier does not know. Names may carry a `_v2` suffix. */
@@ -47,6 +48,32 @@ export function cursorFilePath(input: unknown): string | undefined {
     if (typeof v === 'string' && v.trim()) return v;
   }
   return toolFilePath(input);
+}
+
+/**
+ * What an edit tool changed: the result's diff chunks (IDE composer: result.diff.chunks[].diffString,
+ * +/- lines without headers) when present, else what the params describe (search_replace
+ * old_string/new_string, a write's contents). Undefined when neither says (edit_file instructions).
+ */
+export function cursorEditDiff(name: string, params: unknown, result?: unknown): DiffText | undefined {
+  const r = jsonString(result);
+  if (isObj(r) && isObj(r.diff) && Array.isArray(r.diff.chunks)) {
+    const chunks = r.diff.chunks
+      .map((ch) => (isObj(ch) && typeof ch.diffString === 'string' ? ch.diffString.replace(/\r?\n$/, '') : ''))
+      .filter(Boolean);
+    if (chunks.length) {
+      const diff = chunks.map((ch) => `@@\n${ch}`).join('\n');
+      return { diff, ...countDiffLines(diff) };
+    }
+  }
+  if (!isObj(params)) return undefined;
+  const s = (...keys: string[]) => keys.map((k) => params[k]).find((v): v is string => typeof v === 'string');
+  const before = s('old_string', 'oldString', 'old_str');
+  const after = s('new_string', 'newString', 'new_str');
+  if (before !== undefined && after !== undefined) return diffTexts(before, after);
+  const content = s('contents', 'content', 'file_text');
+  if (content !== undefined && fileOpFor(name) === 'create') return newFileDiff(content);
+  return undefined;
 }
 
 /** One line describing a tool call's input. */

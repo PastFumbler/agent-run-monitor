@@ -18,7 +18,9 @@
 import { join } from 'node:path';
 import type { FileOp } from '@shared/schema';
 import { emptyRun, type ParsedRun, type ParseState, type SessionRef, type TurnState } from '../../adapter';
+import { applyPatchFiles, diffTexts, newFileDiff, pushChange } from '../../changes';
 import { baseName, clip, makeTitle, pushEvent, textOf, toMs, toolInputSummary } from '../../events';
+import { addUsageSince, setUsageTotal } from '../../usage';
 import {
   fileOpOf,
   fingerprint,
@@ -74,6 +76,7 @@ export async function parseClineSdk(ref: SessionRef, prev: ParseState | undefine
       messages = Array.isArray(v) ? v : isObj(v) && Array.isArray(v.messages) ? v.messages : [];
       if (!Array.isArray(v) && !(isObj(v) && Array.isArray(v.messages))) {
         const st = freshFrom(ref, manifest);
+        manifestUsage(st.run, manifest);
         st.run.readError = UNRECOGNISED;
         return st;
       }
@@ -88,6 +91,7 @@ export async function parseClineSdk(ref: SessionRef, prev: ParseState | undefine
   st.extra = { siblings };
   const run = st.run;
   const recognised = walkMessages(run, messages.filter(isObj));
+  manifestUsage(run, manifest);
   run.skipped += messages.length - messages.filter(isObj).length;
   if (salvaged) run.skipped++;
   if (messages.length > 0 && recognised === 0) run.readError = UNRECOGNISED;
@@ -105,11 +109,17 @@ function freshFrom(ref: SessionRef, manifest: Obj | undefined): ParseState {
   run.model = str(manifest?.model) ?? str(meta.modelId);
   const started = toMs(manifest?.started_at);
   if (started) run.startedAt = started;
-  const tin = num(meta.tokensIn);
-  const tout = num(meta.tokensOut);
-  if (tin != null) run.inputTokens = tin;
-  if (tout != null) run.outputTokens = tout;
   return { offset: 0, size: ref.size, mtimeMs: ref.mtimeMs, run, extra: {} };
+}
+
+/**
+ * The manifest's session totals win over the per-message metrics (kept as recorded; the cache
+ * figures are separate fields). Growth beyond the messages has no known day.
+ */
+function manifestUsage(run: ParsedRun, manifest: Obj | undefined): void {
+  const meta = isObj(manifest?.metadata) ? (manifest!.metadata as Obj) : {};
+  if (num(meta.tokensIn) == null && num(meta.tokensOut) == null) return;
+  setUsageTotal(run, { input: num(meta.tokensIn), output: num(meta.tokensOut), cacheRead: num(meta.cacheReads), cacheWrite: num(meta.cacheWrites) });
 }
 
 /** Builds events from the messages; returns how many messages were recognised. */
@@ -124,9 +134,6 @@ function walkMessages(run: ParsedRun, messages: Obj[]): number {
     }
   }
   let recognised = 0;
-  let tin = 0;
-  let tout = 0;
-  let sawMetrics = false;
   const names = new Map<string, string>();
   for (const m of messages) {
     if (m.role !== 'user' && m.role !== 'assistant') {
@@ -152,16 +159,10 @@ function walkMessages(run: ParsedRun, messages: Obj[]): number {
     }
     const mi = isObj(m.modelInfo) ? m.modelInfo : undefined;
     if (mi && str(mi.id) && !run.model) run.model = String(mi.id);
-    if (isObj(m.metrics)) {
-      sawMetrics = true;
-      tin += num(m.metrics.inputTokens) ?? 0;
-      tout += num(m.metrics.outputTokens) ?? 0;
-    }
+    const mark = run.tally.events;
     for (const b of blocksOf(m)) block(run, m.role, b, ts, results, names);
-  }
-  if (sawMetrics) {
-    run.inputTokens ??= tin;
-    run.outputTokens ??= tout;
+    const x = isObj(m.metrics) ? m.metrics : undefined;
+    if (x) addUsageSince(run, mark, { input: num(x.inputTokens), output: num(x.outputTokens), cacheRead: num(x.cacheReadTokens), cacheWrite: num(x.cacheWriteTokens) }, ts);
   }
   return recognised;
 }
@@ -187,7 +188,7 @@ function block(run: ParsedRun, role: unknown, b: Obj, ts: number | undefined, re
       if (typeof b.thinking === 'string' && b.thinking.trim()) pushEvent(run, { kind: 'reasoning', text: b.thinking, ts });
       return;
     case 'redacted_thinking':
-      pushEvent(run, { kind: 'reasoning', text: '(reasoning hidden by the provider)', ts });
+      pushEvent(run, { kind: 'reasoning', text: '(reasoning hidden by the provider)', ts, placeholder: true });
       return;
     case 'tool_use':
       toolUse(run, b, ts, results, names);
@@ -226,6 +227,21 @@ function toolUse(run: ParsedRun, b: Obj, ts: number | undefined, results: Map<st
   const one = files.length === 1 ? { filePath: files[0].path, fileOp: files[0].op } : {};
   pushEvent(run, { kind: 'tool_call', text: sdkSummary(b.input), ts, toolName: name, toolCallId: id, toolKind: kind, ...one });
   if (files.length > 1) for (const f of files) pushEvent(run, { kind: 'file_change', text: f.path, ts, filePath: f.path, fileOp: f.op, toolCallId: id, toolName: name });
+  // A change once the call's result is in and not an error.
+  const r = id ? results.get(id) : undefined;
+  if (!files.length || !r || r.isError) return;
+  const input = isObj(b.input) ? b.input : {};
+  if (name === 'apply_patch') {
+    for (const f of applyPatchFiles(str(input.input) ?? str(input.patch) ?? '')) {
+      if (!f.moved) pushChange(run, { ts, filePath: f.path, op: f.op, diff: f.diff?.diff, linesAdded: f.diff?.added, linesRemoved: f.diff?.removed, toolCallId: id });
+    }
+    return;
+  }
+  const before = str(input.old_text) ?? str(input.old_str);
+  const after = str(input.new_text) ?? str(input.new_str);
+  const content = str(input.content) ?? str(input.file_text);
+  const d = before !== undefined && after !== undefined ? diffTexts(before, after) : content !== undefined ? newFileDiff(content) : undefined;
+  pushChange(run, { ts, filePath: files[0].path, op: files[0].op, diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: id });
 }
 
 /** The SDK tools take lists (read_files.files, run_commands.commands, search_codebase.queries). */

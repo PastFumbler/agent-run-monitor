@@ -199,8 +199,17 @@ describe('composer store', () => {
     expect(r.projectPath).toBe('/home/alex/todo-cli');
     expect(r.gitBranch).toBe('feature/done-flag');
     expect(r.model).toBe('claude-4.5-sonnet');
-    expect(r.inputTokens).toBe(21877);
-    expect(r.outputTokens).toBe(412);
+    // Only one bubble recorded tokens (the zeros on the others mean "not recorded"); no cache split.
+    expect(r.usage).toMatchObject({ input: 21877, output: 412 });
+    expect(r.usage!.cacheRead).toBeUndefined();
+    expect(r.events.filter((e) => e.usage)).toHaveLength(1);
+    // Both applied edits, from the result's diff chunks.
+    expect(r.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved, c.toolCallId])).toEqual([
+      ['/home/alex/todo-cli/todo/cli.py', 'edit', 3, 1, expect.any(String)],
+      ['/home/alex/todo-cli/todo/cli.py', 'edit', 1, 0, expect.any(String)],
+    ]);
+    expect(r.changes![1].diff).toBe("@@\n+    p_list.add_argument('--done', action='store_true')");
+    expect(r.hasReasoning).toBe(true);
     expect(counts(r.events)).toEqual({ user: 1, reasoning: 1, assistant: 2, tool_call: 5, tool_result: 5 });
     expect(r.events.some((e) => e.text.includes('regenerated'))).toBe(false); // orphan bubble ignored
     for (const call of r.events.filter((e) => e.kind === 'tool_call')) {
@@ -437,6 +446,11 @@ describe('cursor-agent CLI store', () => {
     expect(counts(r.events)).toEqual({ user: 1, assistant: 1, tool_call: 2, tool_result: 1, reasoning: 1 });
     expect(r.events.find((e) => e.kind === 'tool_result')?.toolCallId).toBe('call_SYNTH0001');
     expect(Object.keys(r.files)).toEqual(['/home/alex/todo-cli/todo/cli.py']);
+    // Counted at the call, like the files table, from the call's old/new strings.
+    expect(r.changes).toEqual([
+      { filePath: '/home/alex/todo-cli/todo/cli.py', op: 'edit', linesAdded: 1, linesRemoved: 1, diff: "@@\n-add_parser('list')\n+add_parser('list')  # --done", toolCallId: 'call_SYNTH0002' },
+    ]);
+    expect(r.usage).toBeUndefined(); // this store records no tokens
     expect(r.turn).toBe('in_progress');
     expect(r.openTool).toEqual({ name: 'StrReplace', kind: 'edit', since: 1790000655000 });
     expect(r.startedAt).toBe(1790000590000);
@@ -494,6 +508,11 @@ describe('agent transcripts', () => {
       '/home/alex/todo-cli/todo/cli.py': { ops: ['edit'], count: 1 },
       '/home/alex/todo-cli/tests/test_done_flag.py': { ops: ['create'], count: 1 },
     });
+    // StrReplace from its old/new strings, Write as a new file; transcripts record no times.
+    expect(r.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved, c.ts])).toEqual([
+      ['/home/alex/todo-cli/todo/cli.py', 'edit', 1, 0, undefined],
+      ['/home/alex/todo-cli/tests/test_done_flag.py', 'create', 2, 0, undefined],
+    ]);
     expect(r.events.find((e) => e.toolName === 'Shell')?.toolKind).toBe('run');
     expect(r.events.find((e) => e.kind === 'user')?.ts).toBe(Date.parse('2026-09-21T14:03:00Z'));
     expect(r.turn).toBe('error');

@@ -11,7 +11,7 @@ import { modelName } from './common';
 import { buildV1Run, type V1Message } from './messages';
 import { nativePath } from './paths';
 import { all, asNum, asText, one, parseJson, pick, tableNames, type Database } from './sqlite';
-import { projectName as projectNameOf, type SessionListing } from './v2';
+import { projectName as projectNameOf, sessionUsage, type SessionListing } from './v2';
 
 const SESSION_COLS = [
   'id', 'project_id', 'parent_id', 'title', 'directory', 'model', 'tokens_input', 'tokens_output', 'tokens_reasoning',
@@ -93,8 +93,7 @@ export function buildV1DbRun(db: Database, id: string): ParsedRun {
     }
   }
 
-  const tokIn = (asNum(s.tokens_input) ?? 0) + (asNum(s.tokens_cache_read) ?? 0) + (asNum(s.tokens_cache_write) ?? 0);
-  const tokOut = (asNum(s.tokens_output) ?? 0) + (asNum(s.tokens_reasoning) ?? 0);
+  const usage = sessionUsage(s);
   const run = buildV1Run(
     {
       title: asText(s.title),
@@ -103,8 +102,7 @@ export function buildV1DbRun(db: Database, id: string): ParsedRun {
       model: modelName(asText(s.model)),
       created: asNum(s.time_created),
       updated: asNum(s.time_updated),
-      inputTokens: tokIn || undefined,
-      outputTokens: tokOut || undefined,
+      usage,
     },
     messages,
     unreadable,

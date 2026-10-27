@@ -11,12 +11,14 @@
 import type { ParsedRun, SessionRef } from '../../adapter';
 import { emptyRun } from '../../adapter';
 import { baseName, isObj, makeTitle, pushEvent, toolFilePath, toolInputSummary, toMs } from '../../events';
+import { addUsageSince } from '../../usage';
 import {
   fileDiffOf,
+  geminiUsage,
+  noteFileChange,
   isMetaPrompt,
   isQuestionTool,
   kindOf,
-  num,
   opForTool,
   partsOf,
   partsText,
@@ -219,6 +221,7 @@ function mapModel(run: ParsedRun, m: Msg, ts: number | undefined, answered: Set<
   // The model speaks again only after every call of its previous message was answered, so calls
   // from earlier messages that still look open lost their response record (masking, compression).
   open.clear();
+  const mark = run.tally.events;
   if (Array.isArray(m.thoughts)) {
     for (const th of m.thoughts) {
       if (!isObj(th)) continue;
@@ -243,6 +246,7 @@ function mapModel(run: ParsedRun, m: Msg, ts: number | undefined, answered: Set<
     if (!id || !answered.has(id)) open.set(id ?? `${name}@${ts}`, { name, since: ts ?? 0 });
   }
   for (const tc of calls) mapToolCall(run, tc, ts);
+  if (isObj(m.tokens)) addUsageSince(run, mark, geminiUsage(m.tokens.input, m.tokens.cached, m.tokens.output, m.tokens.thoughts, m.tokens.tool), ts);
 }
 
 function pushToolCall(run: ParsedRun, name: string, id: string | undefined, args: unknown, ts: number | undefined): void {
@@ -272,6 +276,7 @@ function mapToolCall(run: ParsedRun, tc: Record<string, unknown>, ts: number | u
     if (filePath) {
       const fileOp = diff?.fileOp ?? opForTool(name);
       pushEvent(run, { kind: 'file_change', text: diff?.diff ?? `${fileOp} ${filePath}`, ts: doneAt, toolName: name, toolCallId: id, filePath, fileOp });
+      noteFileChange(run, diff, filePath, fileOp, doneAt, id);
     }
   }
 }
@@ -354,21 +359,10 @@ function setModelTurn(run: ParsedRun, m: Msg, open: Map<string, OpenCall>): void
 }
 
 function setTotals(run: ParsedRun, st: GeminiState, msgs: Msg[]): void {
-  let input = 0;
-  let output = 0;
-  let any = false;
+  // Tokens are added per message in mapModel.
   for (const m of msgs) {
     if (m.type !== 'gemini' && m.type !== 'qwen') continue;
     if (str(m.model)) run.model = m.model as string;
-    if (!isObj(m.tokens)) continue;
-    any = true;
-    // `input` already includes `cached`; thoughts are billed as output.
-    input += num(m.tokens.input);
-    output += num(m.tokens.output) + num(m.tokens.thoughts);
-  }
-  if (any) {
-    run.inputTokens = input;
-    run.outputTokens = output;
   }
   const start = toMs(st.meta.startTime);
   if (start && (!run.startedAt || start < run.startedAt)) run.startedAt = start;

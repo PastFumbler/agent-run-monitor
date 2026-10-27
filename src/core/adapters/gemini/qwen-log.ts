@@ -8,12 +8,14 @@
 
 import type { ParsedRun, TurnState } from '../../adapter';
 import { baseName, isObj, makeTitle, pushEvent, toolFilePath, toolInputSummary, toMs } from '../../events';
+import { addUsageSince } from '../../usage';
 import {
   fileDiffOf,
+  geminiUsage,
+  noteFileChange,
   isMetaPrompt,
   isQuestionTool,
   kindOf,
-  num,
   opForTool,
   partsOf,
   partsText,
@@ -126,7 +128,7 @@ function onUser(run: ParsedRun, st: QwenState, r: Record<string, unknown>, ts: n
 
 function onAssistant(run: ParsedRun, st: QwenState, r: Record<string, unknown>, ts: number | undefined): void {
   if (str(r.model)) run.model = r.model as string;
-  addUsage(run, r.usageMetadata);
+  const mark = run.tally.events;
   // The model is called again only once every call of its previous response has a result, so
   // anything still pending lost its tool_result record. A model reply also ends a cancellation.
   st.pending = {};
@@ -148,6 +150,8 @@ function onAssistant(run: ParsedRun, st: QwenState, r: Record<string, unknown>, 
     }
   }
   flushText();
+  const u = r.usageMetadata;
+  if (isObj(u)) addUsageSince(run, mark, geminiUsage(u.promptTokenCount, u.cachedContentTokenCount, u.candidatesTokenCount, u.thoughtsTokenCount, u.toolUsePromptTokenCount), ts);
   const open = Object.keys(st.pending).length > 0;
   run.turn = open ? 'in_progress' : 'completed';
   run.turnDetail = undefined;
@@ -192,7 +196,10 @@ function onToolResult(run: ParsedRun, st: QwenState, r: Record<string, unknown>,
     const diff = fileDiffOf(tcr.resultDisplay);
     const filePath = diff?.filePath ?? pending?.filePath;
     const fileOp = diff?.fileOp ?? opForTool(name);
-    if (filePath) pushEvent(run, { kind: 'file_change', text: diff?.diff ?? `${fileOp} ${filePath}`, ts, toolName: name, toolCallId: id, filePath, fileOp });
+    if (filePath) {
+      pushEvent(run, { kind: 'file_change', text: diff?.diff ?? `${fileOp} ${filePath}`, ts, toolName: name, toolCallId: id, filePath, fileOp });
+      noteFileChange(run, diff, filePath, fileOp, ts, id);
+    }
   }
   if (status === 'cancelled') st.cancelled = true;
   const stillOpen = Object.keys(st.pending).length > 0;
@@ -266,12 +273,6 @@ function onTelemetry(run: ParsedRun, st: QwenState, p: Record<string, unknown>, 
 function setTurn(run: ParsedRun, turn: TurnState, detail?: string): void {
   run.turn = turn;
   run.turnDetail = detail;
-}
-
-function addUsage(run: ParsedRun, u: unknown): void {
-  if (!isObj(u)) return;
-  run.inputTokens = (run.inputTokens ?? 0) + num(u.promptTokenCount);
-  run.outputTokens = (run.outputTokens ?? 0) + num(u.candidatesTokenCount) + num(u.thoughtsTokenCount);
 }
 
 /** Fields derived from the whole state, set after each batch of records. */

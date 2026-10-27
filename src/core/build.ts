@@ -3,6 +3,7 @@
 
 import { createHash } from 'node:crypto';
 import type {
+  CodeChange,
   FileChangeSummary,
   RunDetail,
   RunEvent,
@@ -77,9 +78,9 @@ export function toSummary(ref: SessionRef, st: ParseState, now: number, mask: bo
       toolCalls: r.tally.toolCalls,
       errors: r.tally.errors,
       filesChanged: Object.keys(r.files).length,
-      inputTokens: r.inputTokens,
-      outputTokens: r.outputTokens,
     },
+    usage: r.usage,
+    hasReasoning: r.hasReasoning === true,
     sourcePath: ref.path,
     readError: r.readError,
     currentTool: j.status === 'running' ? r.openTool?.name : undefined,
@@ -93,6 +94,7 @@ export function toDetail(ref: SessionRef, st: ParseState, now: number, mask: boo
   const all = st.run.events;
   const startSeq = st.run.dropped;
   const events: RunEvent[] = all.map((e, i) => ({ ...e, seq: startSeq + i, text: m(e.text) }));
+  const changes: CodeChange[] = (st.run.changes ?? []).slice(-limit).map((c) => (c.diff === undefined ? { ...c } : { ...c, diff: m(c.diff) }));
   const files: FileChangeSummary[] = Object.entries(st.run.files)
     .map(([path, f]) => ({ path, ops: [...f.ops], count: f.count, lastTs: f.lastTs }))
     .sort((a, b) => b.count - a.count || (b.lastTs ?? 0) - (a.lastTs ?? 0));
@@ -135,5 +137,7 @@ export function toDetail(ref: SessionRef, st: ParseState, now: number, mask: boo
     totalEvents: st.run.tally.events,
     files,
     tools: tools.slice(-limit),
+    changes,
+    totalChanges: (st.run.changes?.length ?? 0) + (st.run.droppedChanges ?? 0),
   };
 }

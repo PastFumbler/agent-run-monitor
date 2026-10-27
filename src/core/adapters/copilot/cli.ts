@@ -16,10 +16,12 @@
 
 import { stat } from 'node:fs/promises';
 import { posix, win32 } from 'node:path';
-import type { FileOp, ToolKind } from '@shared/schema';
+import type { FileOp, TokenUsage, ToolKind } from '@shared/schema';
 import { emptyRun, type DiscoverContext, type Env, type ParsedRun, type ParseState, type SessionRef } from '../../adapter';
+import { countDiffLines, diffTexts, newFileDiff, pushChange, samePathTail, splitFileDiffs, type DiffText } from '../../changes';
 import { baseName, isObj, makeTitle, pushEvent, textOf, toMs, toolFilePath, toolInputSummary, toolKind } from '../../events';
 import { readJsonl } from '../../jsonl';
+import { addUsage, setUsageTotal, tokenCount } from '../../usage';
 import { canContinue, listDir, parseFlatYaml, readSignature, readSmallText, statOrNull } from './shared';
 import { UNRECOGNISED } from './vscode';
 
@@ -120,9 +122,6 @@ interface CliState {
   firstPrompt?: string;
   recognised: number;
   lines: number;
-  shutIn: number;
-  shutOut: number;
-  msgOut: number;
 }
 
 function initState(): CliState {
@@ -136,9 +135,6 @@ function initState(): CliState {
     shutdown: null,
     recognised: 0,
     lines: 0,
-    shutIn: 0,
-    shutOut: 0,
-    msgOut: 0,
   };
 }
 
@@ -366,10 +362,17 @@ function onUser(run: ParsedRun, x: CliState, d: Obj, ts: number | undefined): vo
 }
 
 function onAssistant(run: ParsedRun, x: CliState, d: Obj, ts: number | undefined): void {
-  if (str(d.reasoningText).trim()) pushEvent(run, { kind: 'reasoning', text: str(d.reasoningText), ts });
-  if (str(d.content).trim()) pushEvent(run, { kind: 'assistant', text: str(d.content), ts });
+  // Each message records its output tokens only; input comes with the session totals at shutdown.
+  let usage: TokenUsage | undefined = tokenCount(d.outputTokens) !== undefined ? { output: tokenCount(d.outputTokens) } : undefined;
+  const take = () => {
+    const u = usage;
+    usage = undefined;
+    return u;
+  };
+  if (str(d.reasoningText).trim()) pushEvent(run, { kind: 'reasoning', text: str(d.reasoningText), ts, usage: take() });
+  if (str(d.content).trim()) pushEvent(run, { kind: 'assistant', text: str(d.content), ts, usage: take() });
+  if (usage) addUsage(run, usage, ts);
   if (str(d.model) && d.model !== 'resumed') x.model = str(d.model);
-  if (typeof d.outputTokens === 'number') x.msgOut += d.outputTokens;
   const reqs = Array.isArray(d.toolRequests) ? d.toolRequests.filter(isObj) : [];
   for (const t of reqs) {
     const id = str(t.toolCallId);
@@ -444,11 +447,45 @@ function onToolComplete(run: ParsedRun, x: CliState, d: Obj, ts: number | undefi
     ts,
   });
   if (ok && t) {
-    for (const f of writtenFiles(t.name, t.args)) {
+    const files = writtenFiles(t.name, t.args);
+    for (const f of files) {
       pushEvent(run, { kind: 'file_change', text: `${t.name} ${f.path}`, filePath: f.path, fileOp: f.op, toolCallId: id || undefined, ts });
     }
+    noteChanges(run, files, t.args, d, id || undefined, ts);
   }
   if (id) delete x.tools[id];
+}
+
+/**
+ * One change per written file. The result's detailedContent holds a git-style diff of what was
+ * applied (and toolTelemetry.metrics the line counts); without it the call's arguments
+ * (old_str/new_str, file_text) describe the edit. [fixture shape]
+ */
+function noteChanges(run: ParsedRun, files: { path: string; op: FileOp }[], args: unknown, d: Obj, id: string | undefined, ts: number | undefined): void {
+  if (!files.length) return;
+  const r = isObj(d.result) ? d.result : {};
+  const parts = typeof r.detailedContent === 'string' ? splitFileDiffs(r.detailedContent) : [];
+  const tele = isObj(d.toolTelemetry) && isObj(d.toolTelemetry.metrics) ? d.toolTelemetry.metrics : {};
+  for (const f of files) {
+    const part = files.length === 1 && parts.length === 1 ? parts[0] : parts.find((p) => samePathTail(f.path, p.path));
+    let diff: DiffText | undefined = part ? { diff: part.diff, ...countDiffLines(part.diff) } : undefined;
+    if (!diff && files.length === 1 && isObj(args)) {
+      const before = str(args.old_str);
+      const after = str(args.new_str);
+      if (typeof args.file_text === 'string') diff = newFileDiff(args.file_text);
+      else if (typeof args.old_str === 'string' && typeof args.new_str === 'string') diff = diffTexts(before, after);
+    }
+    const one = files.length === 1;
+    pushChange(run, {
+      ts,
+      filePath: f.path,
+      op: f.op,
+      diff: diff?.diff,
+      linesAdded: (one ? tokenCount(tele.linesAdded) : undefined) ?? diff?.added,
+      linesRemoved: (one ? tokenCount(tele.linesRemoved) : undefined) ?? diff?.removed,
+      toolCallId: id,
+    });
+  }
 }
 
 function resultText(r: unknown): string {
@@ -510,15 +547,25 @@ function onShutdown(run: ParsedRun, x: CliState, d: Obj, ts: number | undefined)
   // Session totals per model (persisted since 0.0.422). Each shutdown is cumulative: on resume
   // the CLI restores its metrics from the last shutdown event, so the newest one replaces the
   // others instead of adding to them. [source: UsageMetricsTracker.processShutdown]
+  // inputTokens includes the cache reads and writes, which are reported apart. The growth over
+  // what the messages already reported goes to the shutdown's day.
   const metrics = isObj(d.modelMetrics) ? d.modelMetrics : undefined;
   if (metrics) {
-    x.shutIn = 0;
-    x.shutOut = 0;
+    const sum: Record<'in' | 'out' | 'cr' | 'cw', number | undefined> = { in: undefined, out: undefined, cr: undefined, cw: undefined };
+    const add = (k: keyof typeof sum, v: unknown) => {
+      const n = tokenCount(v);
+      if (n !== undefined) sum[k] = (sum[k] ?? 0) + n;
+    };
     for (const m of Object.values(metrics)) {
       const u = isObj(m) && isObj(m.usage) ? m.usage : undefined;
-      if (typeof u?.inputTokens === 'number') x.shutIn += u.inputTokens;
-      if (typeof u?.outputTokens === 'number') x.shutOut += u.outputTokens;
+      if (!u) continue;
+      add('in', u.inputTokens);
+      add('out', u.outputTokens);
+      add('cr', u.cacheReadTokens);
+      add('cw', u.cacheWriteTokens);
     }
+    const input = sum.in === undefined ? undefined : Math.max(0, sum.in - (sum.cr ?? 0) - (sum.cw ?? 0));
+    setUsageTotal(run, { input, output: sum.out, cacheRead: sum.cr, cacheWrite: sum.cw }, ts);
   }
   if (str(d.currentModel)) x.model = str(d.currentModel);
   x.inTurn = false;
@@ -540,13 +587,6 @@ function finish(run: ParsedRun, x: CliState, ws: Record<string, string | boolean
   // A name the user gave the session wins; else the CLI's own summary title; else the first prompt.
   const named = ws.user_named === true ? wsStr('name') : undefined;
   run.title = makeTitle(named || wsStr('summary') || '') || x.firstPrompt || run.title;
-
-  if (x.shutIn || x.shutOut) {
-    run.inputTokens = x.shutIn || undefined;
-    run.outputTokens = x.shutOut || undefined;
-  } else if (x.msgOut) {
-    run.outputTokens = x.msgOut;
-  }
 
   run.openTool = undefined;
   run.turnDetail = undefined;

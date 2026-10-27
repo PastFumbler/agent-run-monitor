@@ -181,9 +181,22 @@ describe('gemini family: parse Gemini CLI', () => {
       '/home/alex/src/todo-cli/todo/cli.py': { ops: ['edit'], count: 1, lastTs: Date.parse('2026-10-20T14:03:23.666Z') },
       '/home/alex/src/todo-cli/tests/test_done.py': { ops: ['create'], count: 1, lastTs: Date.parse('2026-10-20T14:03:33.753Z') },
     });
-    // Summed over unique messages: input includes cached; thoughts count as output.
-    expect(r.inputTokens).toBe(8412 + 9120 + 9518 + 9702 + 9990 + 10204);
-    expect(r.outputTokens).toBe(38 + 210 + 27 + 188 + 41 + 61 + 112 + 64 + 96);
+    // Summed over unique messages: the cached part of the input is reported apart; thoughts count as output.
+    const cached = 8064 + 9024 + 9024 + 9600 + 9600;
+    expect(r.usage).toMatchObject({
+      input: 8412 + 9120 + 9518 + 9702 + 9990 + 10204 - cached,
+      cacheRead: cached,
+      output: 38 + 210 + 27 + 188 + 41 + 61 + 112 + 64 + 96,
+    });
+    expect(r.usage!.cacheWrite).toBeUndefined(); // Gemini records no cache writes
+    expect(r.events.filter((e) => e.usage)).toHaveLength(6); // one per model message
+    // Both successful edits, with the FileDiff hunks (file headers dropped).
+    expect(r.changes!.map((c) => [c.filePath, c.op, c.linesAdded, c.linesRemoved])).toEqual([
+      ['/home/alex/src/todo-cli/todo/cli.py', 'edit', 2, 0],
+      ['/home/alex/src/todo-cli/tests/test_done.py', 'create', 7, 0],
+    ]);
+    expect(r.changes![0].diff!.split('\n')[0]).toBe('@@ -5,4 +5,6 @@');
+    expect(r.hasReasoning).toBe(true);
     expect(r.turn).toBe('error');
     expect(r.turnDetail).toBe('API Error: 503 The model is overloaded. Please try again later.');
     expect(r.openTool).toBeUndefined();
@@ -227,7 +240,7 @@ describe('gemini family: parse Gemini CLI', () => {
     expect(r.parentPath).toBe(G_MAIN);
     expect(kinds(st)).toEqual({ user: 1, assistant: 1 });
     expect(r.turn).toBe('completed');
-    expect([r.inputTokens, r.outputTokens]).toEqual([3011, 19]);
+    expect(r.usage).toMatchObject({ input: 3011, cacheRead: 0, output: 19 });
   });
 
   it('parses the legacy single-JSON format', async () => {
@@ -240,7 +253,7 @@ describe('gemini family: parse Gemini CLI', () => {
     expect([call.toolName, call.toolKind, call.text, call.filePath]).toEqual(['list_directory', 'search', PROJECT, PROJECT]);
     expect(r.events.find((e) => e.kind === 'tool_result')!.text).toBe('Listed 4 item(s).');
     expect(r.turn).toBe('completed');
-    expect([r.inputTokens, r.outputTokens]).toEqual([5120 + 5230, 12 + 40 + 24]);
+    expect(r.usage).toMatchObject({ input: 5120 + 5230, cacheRead: 0, output: 12 + 40 + 24 });
   });
 
   it('reads legacy Qwen messages typed "qwen" in a hash folder', async () => {
@@ -281,8 +294,9 @@ describe('gemini family: parse Qwen Code', () => {
     expect(r.tally).toEqual({ events: 14, messages: 5, toolCalls: 3, errors: 2 });
     expect(Object.keys(r.files)).toEqual(['/home/alex/src/todo-cli/todo/cli.py']);
     expect(r.files['/home/alex/src/todo-cli/todo/cli.py'].ops).toEqual(['edit']);
-    expect(r.inputTokens).toBe(11234 + 11502 + 11790 + 12010);
-    expect(r.outputTokens).toBe(61 + 24 + 118 + 52 + 37);
+    const cached = 11008 + 11520 + 11776;
+    expect(r.usage).toMatchObject({ input: 11234 + 11502 + 11790 + 12010 - cached, cacheRead: cached, output: 61 + 24 + 118 + 52 + 37 });
+    expect(r.changes!.map((c) => [c.filePath, c.op, c.linesAdded !== undefined])).toEqual([['/home/alex/src/todo-cli/todo/cli.py', 'edit', true]]);
     expect(r.turn).toBe('error');
     expect(r.turnDetail).toBe('429 Rate limit exceeded, please retry later.');
     expect(r.openTool).toBeUndefined();
@@ -392,7 +406,8 @@ describe('gemini family: incremental parsing', () => {
     turnDetail: st.run.turnDetail,
     title: st.run.title,
     model: st.run.model,
-    tokens: [st.run.inputTokens, st.run.outputTokens],
+    usage: st.run.usage,
+    changes: st.run.changes,
     openTool: st.run.openTool,
     skipped: st.run.skipped,
   });

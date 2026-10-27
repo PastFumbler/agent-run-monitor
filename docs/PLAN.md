@@ -88,10 +88,20 @@ interface RunSummary {
   updatedAt: number;        // last event or file mtime
   status: RunStatus;
   statusDetail?: string;    // plain words: "Waiting for tool approval", "API error 529"
-  counts: { events: number; toolCalls: number; errors: number; filesChanged: number;
-            inputTokens?: number; outputTokens?: number };
+  counts: { events: number; toolCalls: number; errors: number; filesChanged: number };
+  usage?: RunUsage;         // absent when the source reports no tokens: shown as "not reported", never 0
+  hasReasoning?: boolean;   // at least one reasoning event with readable text
   sourcePath: string;       // shown in Overview, so users can find the file
   readError?: string;       // set when status === 'unreadable'
+}
+
+// Tokens exactly as the source records them; a field the source does not record stays undefined.
+// Nothing is estimated. `input` leaves the prompt cache out where the source's figure includes it
+// and documents the split (Anthropic, OpenAI/Codex, Gemini/Qwen, Copilot, OpenCode); Cline, Roo,
+// Continue and Aider record provider-dependent figures, which are kept as recorded.
+interface TokenUsage { input?: number; output?: number; cacheRead?: number; cacheWrite?: number }
+interface RunUsage extends TokenUsage {
+  byDay?: Record<string, TokenUsage>;  // local 'YYYY-MM-DD' of each message; untimed tokens are in the totals only
 }
 
 type EventKind = 'user' | 'assistant' | 'reasoning' | 'tool_call' | 'tool_result'
@@ -105,8 +115,35 @@ interface RunEvent {
   toolName?: string; toolCallId?: string; toolKind?: 'run' | 'edit' | 'read' | 'search' | 'web' | 'agent' | 'other';
   filePath?: string; fileOp?: 'create' | 'edit' | 'delete';
   isError?: boolean; durationMs?: number;
+  usage?: TokenUsage;       // tokens reported with this event (usually a model message's first event)
+  placeholder?: boolean;    // no readable text stored (e.g. Claude Code thinking kept only as a signature)
+}
+
+// RunDetail (runs on screen) also carries `changes: CodeChange[]` (newest 1000 per run kept) and
+// `totalChanges`: one entry per applied edit, with exact line counts when the source records the
+// edit's content (undefined, shown as "unknown", when it does not) and a unified-diff style text,
+// masked like event text, at most 64 KB each and about 1 MB per run (older edits then keep their
+// counts but lose the text).
+interface CodeChange {
+  ts?: number; filePath: string; op: 'create' | 'edit' | 'delete';
+  linesAdded?: number; linesRemoved?: number; diff?: string; truncated?: boolean; toolCallId?: string;
 }
 ```
+
+What each source records (checked against the fixtures and, for Claude Code, a real install):
+
+| Source | Tokens | Cache split | Edit content | Readable reasoning |
+| --- | --- | --- | --- | --- |
+| Claude Code | per message | read and write | result patch, else the call's input | rarely: most thinking is stored empty with only a signature (about 1 block in 80 on the test machine); shown as a placeholder |
+| Codex | running session totals (growth per day) | read; write when recorded | `patch_apply_end` unified diffs, else the apply_patch body | reasoning summaries only (the full text is encrypted) |
+| Gemini CLI, Qwen Code | per message | read | FileDiff unified diffs | yes (thought summaries, thought parts) |
+| Copilot CLI | output per message, totals at session end | read and write | the applied diff the CLI stores, else old/new strings | yes (`reasoningText`) |
+| Copilot in VS Code | per request | no | file names only (line counts unknown), unless a tool's old/new strings are recorded | yes (`thinking` parts) |
+| Cursor | per bubble, rarely recorded (zeros mean not recorded) | no | composer diff chunks, else search/replace strings | yes |
+| OpenCode | per step, session totals win | read and write | file diffs and patches | yes |
+| Cline, Roo Code | per API request (Cline 4.x per message plus session totals) | read and write | SEARCH/REPLACE blocks, new file contents, apply_patch | yes (redacted blocks are placeholders) |
+| Continue | per message, session totals win | read and write when recorded | find/replace strings, new file contents | yes (redacted blocks are placeholders) |
+| Aider | per reply, as printed (rounded above 1000) | read and write when printed | SEARCH/REPLACE, udiff and patch blocks; "whole" edits unknown | yes (`<think>` blocks) |
 
 ### 3.2 Adapters (`src/core/adapters/<agent>/`)
 

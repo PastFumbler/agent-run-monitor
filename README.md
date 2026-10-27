@@ -288,7 +288,7 @@ The left side lists your runs, newest first.
 Each run has five views. Switch with the tabs or the keys `1` to `5`:
 
 1. **Activity**: messages, reasoning steps, tool calls and their results, as they happen.
-2. **Overview**: status, counts, project, branch, model, start time, duration, token use, and the source file with a "Reveal in folder" button.
+2. **Overview**: status, counts, project, branch, model, start time, duration, token use (input, output and prompt-cache tokens as the agent records them, or "Not reported" when the run has none; never estimated), and the source file with a "Reveal in folder" button.
 3. **Files**: the files the run created, edited or deleted.
 4. **Tools**: every tool call, with its result and how long it took.
 5. **Timeline**: the run over time.
@@ -552,6 +552,9 @@ interface RunSummary {
   statusInferred?: boolean;   // true when 'waiting' was worked out rather than recorded
   statusDetail?: string;      // plain words, e.g. "Waiting for tool approval"
   counts: { events: number; toolCalls: number; errors: number; filesChanged: number; /* ... */ };
+  usage?: { input?: number; output?: number; cacheRead?: number; cacheWrite?: number; byDay?: /* ... */ };
+                              // absent when the agent records no tokens; never estimated
+  hasReasoning?: boolean;     // the run has reasoning with readable text
   sourcePath: string;
   parentId?: string;          // sub-agent runs point at their parent
 }
@@ -564,7 +567,12 @@ interface RunEvent {
   toolCallId?: string;        // pairs a call with its result
   filePath?: string;
   isError?: boolean;
+  usage?: { /* ... */ };      // tokens the agent reported with this message
+  placeholder?: boolean;      // the agent stored no readable text (e.g. hidden reasoning)
 }
+
+// RunDetail also lists each applied edit: time, file, lines added and removed (undefined when the
+// agent does not record the edit's content), and the diff when it does, masked like event text.
 ```
 
 ### Adapters

@@ -13,10 +13,12 @@ import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Env, ParseState, SessionRef } from '../../adapter';
 import { emptyRun, freshState } from '../../adapter';
+import { pushChange } from '../../changes';
 import { isObj, pushEvent, textOf } from '../../events';
 import { readJsonl } from '../../jsonl';
 import {
   cleanPrompt,
+  cursorEditDiff,
   cursorFilePath,
   cursorInputSummary,
   cursorToolKind,
@@ -205,6 +207,11 @@ function applyRecord(st: ParseState, rec: unknown, mtime: number): boolean {
         filePath,
         fileOp: kind === 'edit' && filePath ? fileOpFor(name) : undefined,
       });
+      // Counted at the call, like the files table: transcripts give results no call id and no time.
+      if (kind === 'edit' && filePath) {
+        const d = cursorEditDiff(name, c.input);
+        pushChange(run, { filePath, op: fileOpFor(name), diff: d?.diff, linesAdded: d?.added, linesRemoved: d?.removed, toolCallId: id });
+      }
       x.open = { name, since: mtime };
     } else if (t === 'tool_result') {
       pushEvent(run, { kind: 'tool_result', text: textOf(c.content), toolCallId: str(c.tool_use_id), isError: c.is_error === true || undefined });

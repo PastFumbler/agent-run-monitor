@@ -2,7 +2,7 @@
 // (discover) and turns one of them into the common schema (parse). Adapters never write.
 // See CONTRIBUTING.md, "Adding a source adapter".
 
-import type { AgentId, EventKind, FileOp, RunEvent, ToolKind } from '@shared/schema';
+import type { AgentId, CodeChange, EventKind, FileOp, RunEvent, RunUsage, ToolKind } from '@shared/schema';
 
 /** Where an adapter looks. Injected so tests can point adapters at fixture folders. */
 export interface Env {
@@ -64,8 +64,17 @@ export interface ParsedRun {
    */
   turnInferred?: boolean;
   openTool?: OpenTool;
-  inputTokens?: number;
-  outputTokens?: number;
+  /**
+   * Token usage, only when the source reported some. Never edit it in place (states share it):
+   * use addUsage / setUsageTotal in core/usage.ts, which replace it.
+   */
+  usage?: RunUsage;
+  /** Set by pushEvent when a reasoning event with readable text arrives. */
+  hasReasoning?: boolean;
+  /** Edits, oldest first, capped (see core/changes.ts pushChange, which replaces the array). */
+  changes?: CodeChange[];
+  /** Edits dropped from the front because of MAX_CHANGES. */
+  droppedChanges?: number;
   /** Records the adapter did not recognise (counted, never fatal). */
   skipped: number;
   /** The file the parent run (the session that started this sub-agent) lives in. */
