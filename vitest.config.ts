@@ -12,8 +12,15 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['src/**/*.test.{ts,tsx}', 'test/**/*.test.{ts,tsx}'],
-    environment: 'node',
-    environmentMatchGlobs: [['src/renderer/**', 'jsdom']],
+    projects: [
+      {
+        extends: true,
+        test: { name: 'node', environment: 'node', include: ['src/core/**/*.test.ts', 'src/shared/**/*.test.ts', 'src/main/**/*.test.ts', 'test/**/*.test.ts'] },
+      },
+      {
+        extends: true,
+        test: { name: 'renderer', environment: 'jsdom', include: ['src/renderer/**/*.test.{ts,tsx}'] },
+      },
+    ],
   },
 });

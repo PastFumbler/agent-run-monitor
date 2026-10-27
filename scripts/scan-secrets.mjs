@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Scans the working tree AND every commit in history for secrets and for strings that must
 // never be published (personal paths, private names). Run before every push:
+// (a line containing the marker scan-secrets:allow is skipped; use it only for reviewed false positives)
 //   npm run scan-secrets
 // Extra private terms can be supplied without committing them, one per line, in a file named
 // by ARM_PRIVATE_TERMS (e.g. your employer's name, your username). Exit code 1 on any finding.
@@ -25,9 +26,9 @@ const SECRET_PATTERNS = [
 
 // Paths that commonly leak a developer's identity.
 const IDENTITY_PATTERNS = [
-  ['Windows user path', /[A-Za-z]:\\+Users\\+(?!alex\b|user\b|USERNAME\b|<|%|\{|\$|you\b|runneradmin\b|Public\b)[A-Za-z0-9._-]+/],
-  ['macOS user path', /\/Users\/(?!alex\b|user\b|you\b|<|\$|runner\b|Shared\b)[A-Za-z0-9._-]+/],
-  ['Linux home path', /\/home\/(?!alex\b|user\b|you\b|<|\$|runner\b)[A-Za-z0-9._-]+/],
+  ['Windows user path', /[A-Za-z]:\\+Users\\+(?!alex\b|demo\b|user\b|USERNAME\b|<|%|\{|\$|you\b|runneradmin\b|Public\b)[A-Za-z][A-Za-z0-9._-]+/],
+  ['macOS user path', /\/Users\/(?!alex\b|demo\b|user\b|you\b|<|\$|runner\b|Shared\b)[A-Za-z][A-Za-z0-9._-]+/],
+  ['Linux home path', /\/home\/(?!alex\b|demo\b|user\b|you\b|<|\$|runner\b)[A-Za-z][A-Za-z0-9._-]+/],
 ];
 
 const SKIP = [/^node_modules\//, /^package-lock\.json$/, /^out\//, /^release\//, /\.(png|gif|ico|icns|wasm|jpg|webp)$/i];
@@ -42,11 +43,13 @@ function privateTerms() {
     .map((t) => [`private term "${t.slice(0, 2)}…"`, new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')]);
 }
 
-const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 30 });
+const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 1 << 30, stdio: ['ignore', 'pipe', 'ignore'] });
 
 function scanText(label, text, patterns, findings) {
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
+    // A deliberate, reviewed exception (e.g. the masking rules themselves) carries this marker.
+    if (lines[i].includes('scan-secrets:allow')) continue;
     for (const [name, re] of patterns) {
       if (re.test(lines[i])) findings.push(`${label}:${i + 1}: ${name}`);
     }

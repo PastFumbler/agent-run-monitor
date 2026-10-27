@@ -1,0 +1,7 @@
+{"type":"launched"}
+{"type":"started","key":"v2:40424aaba96406239a77d8f78583ec2abe52ba687f40186263719ed15dd684b6","agentId":"a3f19c07be52d4e81","label":"review:logic","phase":"Review"}
+{"type":"started","key":"v2:0adc2938795ba9c97e4fbcc84bd6f53b3083115e1e7115b3e516a993b43998d5","agentId":"b7d20e4c19fa36d05","label":"review:tests","phase":"Review"}
+{"type":"failed","key":"v2:0adc2938795ba9c97e4fbcc84bd6f53b3083115e1e7115b3e516a993b43998d5","agentId":"b7d20e4c19fa36d05"}
+{"type":"started","key":"v2:0adc2938795ba9c97e4fbcc84bd6f53b3083115e1e7115b3e516a993b43998d5","agentId":"c0e8a5d2f1b7934ce","label":"review:tests","phase":"Review"}
+{"type":"result","key":"v2:40424aaba96406239a77d8f78583ec2abe52ba687f40186263719ed15dd684b6","agentId":"a3f19c07be52d4e81","result":{"blockers":[],"shouldFix":[],"nits":["`--due` help text does not mention the YYYY-MM-DD format"],"report":"The due field is optional, parsed with date.fromisoformat and printed by list. No blockers."}}
+{"type":"result","key":"v2:0adc2938795ba9c97e4fbcc84bd6f53b3083115e1e7115b3e516a993b43998d5","agentId":"c0e8a5d2f1b7934ce","result":{"blockers":0,"shouldFix":0,"nits":0,"report":"test_add_with_due_date covers the new path; all 6 tests pass."}}

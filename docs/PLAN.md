@@ -154,7 +154,14 @@ Each storage format below was researched separately. **Verified** means checked 
 | **Aider** | Source (Aider-AI/aider @ 2026-05-22) | No central folder: `.aider.chat.history.md` in each project's git root, plus `~`. The user adds project folders; scanned to depth 4 | Markdown history; one run per `# aider chat started at` header | Known error lines, unanswered confirmation at the end, `/exit`, a later session header, silence |
 | **Cursor** | Best-effort (closed source, not installed) | `%APPDATA%\Cursor\User` (macOS/Linux equivalents), `~/.cursor` | `globalStorage/state.vscdb` (`composerData:*`, `bubbleId:*`), read from a temporary copy of the database and its `-wal`; agent transcripts under `~/.cursor/projects/*/agent-transcripts/` | `turn_ended` status, `errorDetails`, tool call without result + freshness |
 
-The remaining families (Cline / Roo Code / Continue, OpenCode) are listed in 4.2 when their research lands.
+| **Cline** | Source (cline/cline @ 2026-10-27, v4.1.26; old format @ v3.89.2) | Editor `globalStorage/saoudrizwan.claude-dev` (VS Code, Insiders, VSCodium, Cursor, Windsurf) and `~/.cline/data`; `CLINE_DIR`, `CLINE_DATA_DIR` | Up to 3.89: `tasks/<id>/ui_messages.json` + `api_conversation_history.json`; 4.x: `sessions/<id>/` manifest + messages. Never reads `secrets.json` | Last `ask` type (`completion_result`, `tool`/`command`/`followup` = waiting), `api_req_failed`; 4.x status field + pid |
+| **Roo Code** | Source (RooCodeInc/Roo-Code @ 2026-05-15) | `globalStorage/rooveterinaryinc.roo-cline` | Cline's 3.x layout plus `history_item.json` | As Cline 3.x, honouring `isAnswered` |
+| **Continue** | Source (continuedev/continue @ 2026-07-20; repo now archived) | `~/.continue`; `CONTINUE_GLOBAL_DIR` | `sessions/<id>.json` | Tool call state (`generated` = waiting); no timestamps per message |
+| **OpenCode** | Source (sst/opencode @ 2026-10-27) | `$XDG_DATA_HOME/opencode` or `~/.local/share/opencode` on every OS | `opencode.db` (two SQLite schema generations, read from a temporary copy) and the older `storage/session|message|part/*.json` tree, de-duplicated by session id. Never reads account tables | 2.x: `time_suspended` and idle rows; 1.x: last assistant message `error` / `finish` / `time.completed` |
+
+### 4.2 Candidates not built yet
+
+Goose (`sessions/sessions.db`, source-verified) and Crush (per-project `.crush/crush.db`) are well defined and are the next adapters to add; see CONTRIBUTING.md. Amp and Kiro are closed source and were not available to check; Amazon Q CLI is superseded by Kiro.
 
 ### 4.3 What cannot be monitored
 

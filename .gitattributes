@@ -5,3 +5,5 @@
 *.icns binary
 *.wasm binary
 *.vscdb binary
+# Fixtures are byte-exact copies of agent files (some are CRLF, some deliberately corrupt).
+test/fixtures/** -text
