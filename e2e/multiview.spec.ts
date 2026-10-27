@@ -184,7 +184,8 @@ test.describe('multiviewer grid', () => {
     for (const i of [2, 3, 4]) {
       const row = rows.nth(i);
       picked.push((await row.getAttribute('data-run-id')) as string);
-      await row.click({ modifiers: ['Control'] });
+      // ⌘ on macOS, where Ctrl-click is a right-click and never fires `click`.
+      await row.click({ modifiers: ['ControlOrMeta'] });
     }
     const open = page.getByRole('button', { name: 'Open multiviewer (3)' });
     await expect(open).toBeVisible();

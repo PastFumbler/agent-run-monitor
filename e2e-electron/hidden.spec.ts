@@ -47,6 +47,9 @@ function flushes(times: number[]): number[] {
 }
 
 test('minimised: data-hidden, and run updates arrive at most once per 5 s; restore resumes', async () => {
+  // CI runs Linux under xvfb, which has no window manager, so minimize() is a no-op there. The
+  // Windows job covers this test, and e2e/app.spec.ts checks the same batching in the browser.
+  test.skip(process.platform === 'linux', 'minimize() needs a window manager; xvfb has none');
   home = tempDir('home');
   const claude = path.join(home, '.claude');
   const live = [0, 1].map((i) => {

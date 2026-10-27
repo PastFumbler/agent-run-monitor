@@ -222,7 +222,8 @@ test.describe('demo scenario', () => {
     await row(ids[5]).click({ modifiers: ['Shift'] });
     await expect.poll(picked).toEqual(expect.arrayContaining(ids.slice(3, 6)));
     expect((await picked()).length).toBe(3);
-    await row(ids[7]).click({ modifiers: ['Control'] });
+    // ⌘ on macOS, where Ctrl-click is a right-click and never fires `click`.
+    await row(ids[7]).click({ modifiers: ['ControlOrMeta'] });
     await expect.poll(async () => (await picked()).length).toBe(4);
   });
 });
