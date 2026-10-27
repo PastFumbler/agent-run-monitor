@@ -2,6 +2,7 @@
 // Nothing here comes from a real machine. Content is fully determined by the seed; only the
 // timestamps are placed relative to `now`, so the same ?now= gives the same screen every time.
 
+import type { RunFolder } from '@shared/folders';
 import {
   AGENT_IDS,
   RUN_STATUSES,
@@ -631,6 +632,30 @@ export function makeRun(plan: RunPlan, rng: Rng, now: number, existing: DemoRun[
   for (const e of run.events) if (e.ts !== undefined && e.ts > end) e.ts = end;
   refreshSummary(run);
   return run;
+}
+
+/**
+ * Made-up run folders for the demo: two that hold the runs of some projects, one still empty.
+ * Like the user's real folders they are settings data, keyed by run id.
+ */
+export function demoFolders(runs: Iterable<DemoRun>): { folders: RunFolder[]; runFolders: Record<string, string> } {
+  const folders: RunFolder[] = [
+    { id: 'f_demo_work', name: 'Client work' },
+    { id: 'f_demo_side', name: 'Side projects' },
+    { id: 'f_demo_later', name: 'Someday' },
+  ];
+  const byProject: Record<string, string> = {
+    'weather-api': 'f_demo_work',
+    'link-shortener': 'f_demo_work',
+    'chess-engine': 'f_demo_side',
+    'pixel-editor': 'f_demo_side',
+  };
+  const runFolders: Record<string, string> = {};
+  for (const r of runs) {
+    const fid = r.summary.projectName ? byProject[r.summary.projectName] : undefined;
+    if (fid) runFolders[r.summary.id] = fid;
+  }
+  return { folders, runFolders };
 }
 
 export function demoProject(name: string): DemoProject {

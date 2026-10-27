@@ -101,6 +101,34 @@ describe('FixtureBackend', () => {
     expect(got).toEqual([live[0].id]);
   });
 
+  it('demo has made-up folders, and editFolders saves changes the way the real backend does', async () => {
+    fx = new FixtureBackend({ scenario: 'demo', now: NOW, live: false, fresh: true });
+    const s = await fx.getSettings();
+    expect(s.folders.map((f) => f.name)).toEqual(['Client work', 'Side projects', 'Someday']);
+    const filed = Object.keys(s.runFolders);
+    expect(filed.length).toBeGreaterThan(0);
+    const runIds = new Set((await fx.listRuns()).map((r) => r.id));
+    for (const id of filed) expect(runIds.has(id)).toBe(true);
+
+    const created = await fx.editFolders({ kind: 'create', name: 'Research' });
+    expect(created.error).toBeUndefined();
+    const id = created.folderId!;
+    expect((await fx.editFolders({ kind: 'move', runIds: [filed[0]], folderId: id })).settings.runFolders[filed[0]]).toBe(id);
+    expect((await fx.editFolders({ kind: 'create', name: 'research' })).error).toMatch(/already a folder/);
+    const deleted = await fx.editFolders({ kind: 'delete', id });
+    expect(deleted.settings.folders.some((f) => f.id === id)).toBe(false);
+    expect(deleted.settings.runFolders[filed[0]]).toBeUndefined();
+    // Deleting never removes runs.
+    expect((await fx.listRuns()).length).toBe(runIds.size);
+    // Saved like other settings: a new backend for the same scenario reads them back.
+    const saved = JSON.parse(localStorage.getItem('arm.fixture.settings.demo') ?? '{}');
+    expect(saved.folders.map((f: { name: string }) => f.name)).toEqual(['Client work', 'Side projects', 'Someday']);
+    // Other scenarios start without folders.
+    const empty = new FixtureBackend({ scenario: 'many', now: NOW, live: false, fresh: true });
+    expect((await empty.getSettings()).folders).toEqual([]);
+    empty.controls().pause();
+  });
+
   it('firstrun scenario starts with the wizard', async () => {
     fx = new FixtureBackend({ scenario: 'firstrun', now: NOW, live: false, fresh: true });
     expect((await fx.getSettings()).firstRunComplete).toBe(false);

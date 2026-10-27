@@ -16,12 +16,14 @@ import { useStore } from '../../store/store';
 import { MOD } from '../shortcuts/shortcuts';
 import { ChoiceGroup, SwitchRow, ThemePicker } from './controls';
 import { historyLabel, lowGpuStateText, reduceMotionStateText, refreshLabel, updateResultText } from './describe';
+import { FoldersSection } from './FoldersSection';
 import { stopAppShortcuts } from './keys';
 import { SourcesSection } from './SourcesSection';
 
 export const SETTINGS_SECTIONS = [
   { id: 'sources', label: 'Sources' },
   { id: 'runs', label: 'Runs & refresh' },
+  { id: 'folders', label: 'Folders' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'motion', label: 'Motion & performance' },
@@ -371,6 +373,10 @@ export function SettingsScreen() {
                 </select>
               </div>
             </div>
+          </Section>
+
+          <Section id="folders" title="Folders">
+            <FoldersSection />
           </Section>
 
           <Section id="notifications" title="Notifications">

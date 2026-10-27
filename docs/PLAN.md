@@ -234,7 +234,9 @@ Used deliberately, all from the free public repository (MIT + Commons Clause), n
 
 Stored as JSON in the Electron `userData` folder, validated on load (unknown or invalid values fall back to defaults, never crash):
 
-sources and custom paths (per adapter: on/off, extra roots), refresh rate, default run view, grid tile limit, notifications on finish and on failure, reduce motion (Auto / On / Off), low-GPU mode (Auto / On / Off), synonyms, fake progress bar, theme, text size, density, time format (12 h / 24 h / relative), start with the OS, how far back to show runs, mask likely secrets, check for updates (off).
+sources and custom paths (per adapter: on/off, extra roots), refresh rate, default run view, grid tile limit, notifications on finish and on failure, reduce motion (Auto / On / Off), low-GPU mode (Auto / On / Off), synonyms, fake progress bar, theme, text size, density, time format (12 h / 24 h / relative), start with the OS, how far back to show runs, mask likely secrets, check for updates (off), run folders.
+
+Run folders are app-owned data in the same file: `folders` (app-generated id and name) and `runFolders` (run id to folder id; a run without an entry is unfiled). Changes go through one backend call, `editFolders` (create, rename, delete, move), which main applies with the pure `applyFolderOp` in `src/shared/folders.ts` one change at a time with other settings writes. Deleting a folder only removes its assignments; agent files are never written.
 
 ## 7. First run
 

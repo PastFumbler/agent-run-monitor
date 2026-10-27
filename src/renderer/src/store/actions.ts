@@ -1,5 +1,6 @@
 // Actions that talk to the backend as well as the store.
 
+import type { FolderOp, FolderResult } from '@shared/folders';
 import type { RunView, Settings } from '@shared/settings';
 import { getBackend } from '../backend';
 import { useStore } from './store';
@@ -17,6 +18,29 @@ export function togglePin(id: string): Promise<Settings> {
   const pinned = useStore.getState().settings.pinned;
   return updateSettings({ pinned: pinned.includes(id) ? pinned.filter((x) => x !== id) : [id, ...pinned] });
 }
+
+/**
+ * Run folders. Not optimistic: the backend applies the change (so it never races a settings patch)
+ * and its saved settings are taken as they come. `error` is plain words for the user.
+ */
+export async function editFolders(op: FolderOp): Promise<FolderResult> {
+  let r: FolderResult;
+  try {
+    r = await getBackend().editFolders(op);
+  } catch {
+    // e.g. the settings file could not be written: nothing changed, say so instead of failing silently.
+    return { settings: useStore.getState().settings, error: "Couldn't save that change. Try again." };
+  }
+  useStore.getState().setSettingsLocal(r.settings);
+  return r;
+}
+
+export const createFolder = (name: string) => editFolders({ kind: 'create', name });
+export const renameFolder = (id: string, name: string) => editFolders({ kind: 'rename', id, name });
+/** Its runs go back to Unfiled; the runs themselves are untouched. */
+export const deleteFolder = (id: string) => editFolders({ kind: 'delete', id });
+/** folderId null moves the runs back to Unfiled. */
+export const moveRunsToFolder = (runIds: string[], folderId: string | null) => editFolders({ kind: 'move', runIds, folderId });
 
 export function isPinned(id: string | null): boolean {
   return !!id && useStore.getState().settings.pinned.includes(id);

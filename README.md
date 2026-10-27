@@ -356,6 +356,7 @@ Open with `Ctrl+,` (`⌘,` on a Mac) or the gear button. Changes apply straight 
 
 - **Sources**: switch agents on or off, see where each one looks, add extra folders, add Aider project folders, and **Rescan**.
 - **Runs & refresh**: how often live runs are checked (default every 2 seconds), how far back to show runs (default 2 weeks), the default run view and the tiles per multiviewer page.
+- **Folders**: create, rename and delete folders for grouping runs by project or client. Folders live in the app's own settings, never in an agent's files; deleting a folder returns its runs to Unfiled and never deletes a run.
 - **Notifications**: a desktop notification when a run finishes, and when one fails or gets stuck.
 - **Appearance**: six themes (Paper, Sage and Dawn are light; Dusk, Moss and Harbor are dark), text size, density and time format.
 - **Motion & performance**: see below.

@@ -17,10 +17,12 @@ import type {
 } from '@shared/ipc';
 import { AGENT_CONFIDENCE } from '@shared/agents';
 import { AGENT_IDS, AGENT_NAMES, type RunDetail, type RunStatus, type RunSummary, type SourceStatus } from '@shared/schema';
+import { applyFolderOp, type FolderOp, type FolderResult } from '@shared/folders';
 import { defaultSettings, normalizeSettings, type Settings } from '@shared/settings';
 import { setClockTo, shiftClock, nowMs } from './clock';
 import {
   buildDemo,
+  demoFolders,
   demoProject,
   detailOf,
   EventWriter,
@@ -150,6 +152,7 @@ export class FixtureBackend implements Backend {
     base.firstRunComplete = this.scenario !== 'firstrun';
     const pinned = [...this.runs.values()].filter((r) => r.summary.status === 'failed').slice(0, 1).map((r) => r.summary.id);
     base.pinned = this.scenario === 'demo' ? pinned : [];
+    if (this.scenario === 'demo') Object.assign(base, demoFolders(this.runs.values()));
     const saved = opts.fresh ? null : readSaved(this.scenario);
     this.settings = normalizeSettings({ ...base, ...(saved ?? {}) });
 
@@ -176,12 +179,25 @@ export class FixtureBackend implements Backend {
     if (AGENT_IDS.map((a) => this.sourceEnabled(a)).join() !== wasEnabled) {
       this.evRuns.emit({ upserts: this.visibleSummaries(), removed: [], full: true });
     }
+    this.saveSettings();
+    return structuredClone(this.settings);
+  }
+
+  async editFolders(op: FolderOp): Promise<FolderResult> {
+    const r = applyFolderOp(this.settings, op);
+    if (!r.error) {
+      this.settings = r.settings;
+      this.saveSettings();
+    }
+    return structuredClone({ ...r, settings: this.settings });
+  }
+
+  private saveSettings(): void {
     try {
       localStorage.setItem(`${SETTINGS_KEY}.${this.scenario}`, JSON.stringify(this.settings));
     } catch {
       /* private mode: memory only */
     }
-    return structuredClone(this.settings);
   }
 
   async listRuns(): Promise<RunSummary[]> {

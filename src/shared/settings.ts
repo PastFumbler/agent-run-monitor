@@ -2,6 +2,7 @@
 // normalizeSettings() is the only way settings come in from disk or IPC: anything unknown or
 // invalid falls back to its default, so a damaged settings file never stops the app.
 
+import { normalizeFolders, type RunFolder } from './folders';
 import { AGENT_IDS, type AgentId } from './schema';
 
 export const THEME_IDS = ['paper', 'sage', 'dawn', 'dusk', 'moss', 'harbor'] as const;
@@ -54,6 +55,10 @@ export interface Settings {
   checkForUpdates: boolean;
   pinned: string[];
   layouts: SavedLayout[];
+  /** The user's run folders, in creation order (see src/shared/folders.ts). */
+  folders: RunFolder[];
+  /** Run id -> folder id. Runs without an entry are unfiled. */
+  runFolders: Record<string, string>;
 }
 
 export const REFRESH_CHOICES = [1000, 2000, 5000, 10000, 30000] as const;
@@ -86,6 +91,8 @@ export function defaultSettings(): Settings {
     checkForUpdates: false,
     pinned: [],
     layouts: [],
+    folders: [],
+    runFolders: {},
   };
 }
 
@@ -115,6 +122,7 @@ export function normalizeSettings(raw: unknown): Settings {
         .map((l) => ({ name: String(l.name).slice(0, 80), runIds: strings(l.runIds, 100) }))
         .slice(0, 50)
     : [];
+  const { folders, runFolders } = normalizeFolders(raw.folders, raw.runFolders);
   return {
     version: 1,
     firstRunComplete: bool(raw.firstRunComplete, false),
@@ -139,5 +147,7 @@ export function normalizeSettings(raw: unknown): Settings {
     checkForUpdates: bool(raw.checkForUpdates, d.checkForUpdates),
     pinned: strings(raw.pinned, 500),
     layouts,
+    folders,
+    runFolders,
   };
 }

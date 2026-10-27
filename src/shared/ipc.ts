@@ -3,6 +3,7 @@
 // and screenshot scripts it is the FixtureBackend. The renderer must not depend on anything else.
 
 import type { AgentId, RunDetail, RunSummary, SourceStatus } from './schema';
+import type { FolderOp, FolderResult } from './folders';
 import type { Settings } from './settings';
 
 export interface PowerState {
@@ -63,6 +64,12 @@ export interface Backend {
   getSettings(): Promise<Settings>;
   /** Saves and returns the normalised result. */
   setSettings(patch: Partial<Settings>): Promise<Settings>;
+  /**
+   * Creates, renames or deletes a run folder, or moves runs into one (or back to Unfiled). Applied
+   * in the backend so changes never race; the result carries the saved settings and, when the
+   * change was refused, a plain-words error.
+   */
+  editFolders(op: FolderOp): Promise<FolderResult>;
   listRuns(): Promise<RunSummary[]>;
   /** The newest `limit` events (default 2000) plus files and tools. */
   getRun(id: string, limit?: number): Promise<RunDetail | null>;
@@ -102,6 +109,7 @@ export const IPC = {
   appInfo: 'arm:appInfo',
   getSettings: 'arm:getSettings',
   setSettings: 'arm:setSettings',
+  editFolders: 'arm:editFolders',
   listRuns: 'arm:listRuns',
   getRun: 'arm:getRun',
   getSources: 'arm:getSources',

@@ -34,6 +34,7 @@ const backend: Backend = {
   appInfo: () => ipcRenderer.invoke(IPC.appInfo),
   getSettings: () => ipcRenderer.invoke(IPC.getSettings),
   setSettings: (patch) => ipcRenderer.invoke(IPC.setSettings, patch),
+  editFolders: (op) => ipcRenderer.invoke(IPC.editFolders, op),
   listRuns: () => ipcRenderer.invoke(IPC.listRuns),
   getRun: (id, limit) => ipcRenderer.invoke(IPC.getRun, id, limit),
   getSources: (rescan) => ipcRenderer.invoke(IPC.getSources, rescan === true),

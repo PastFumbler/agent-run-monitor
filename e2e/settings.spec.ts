@@ -222,6 +222,71 @@ test.describe('settings screen', () => {
     await expect(page.getByText('Rescan finished: the list below is up to date.')).toBeVisible();
   });
 
+  test('folders: create, rename and delete; deleting unfiles runs and keeps them', async ({ page }) => {
+    await gotoSettings(page);
+    await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Folders' }).click();
+    await expect(page.getByRole('heading', { level: 2, name: 'Folders' })).toBeFocused();
+    const list = page.getByRole('list', { name: 'Run folders' });
+    const message = page.getByTestId('folders-message');
+    // The demo's made-up folders, with how many runs each holds.
+    await expect(list.getByRole('listitem')).toHaveCount(3);
+    await expect(list.getByRole('listitem').filter({ hasText: 'Someday' })).toContainText('0 runs');
+    const runsBefore = await page.getByTestId('run-list').getByRole('option').count();
+
+    // Create (Enter submits); a duplicate name is refused in plain words.
+    const input = page.getByRole('textbox', { name: 'New folder name' });
+    await input.fill('  Research  ');
+    await input.press('Enter');
+    await expect(message).toHaveText('Created "Research".');
+    await expect(list.getByRole('listitem')).toHaveCount(4);
+    await expect(input).toHaveValue('');
+    await input.fill('research');
+    await page.getByRole('button', { name: 'Create folder' }).click();
+    await expect(message).toHaveText('There is already a folder called "Research".');
+    await expect(list.getByRole('listitem')).toHaveCount(4);
+    await input.fill('');
+
+    // Rename: Esc cancels without leaving settings; Enter saves.
+    await page.getByRole('button', { name: 'Rename Research' }).click();
+    const rename = page.getByRole('textbox', { name: 'New name for Research' });
+    await expect(rename).toBeFocused();
+    await rename.press('Escape');
+    await expect(page.getByTestId('settings-screen')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Rename Research' })).toBeFocused();
+    await page.getByRole('button', { name: 'Rename Research' }).click();
+    await rename.fill('Papers');
+    await rename.press('Enter');
+    await expect(message).toHaveText('Renamed to "Papers".');
+    await expect(list).toContainText('Papers');
+
+    // Delete a folder that holds runs: confirm inline; its runs go back to Unfiled, none disappear.
+    const work = list.getByRole('listitem').filter({ hasText: 'Client work' });
+    const workCount = Number((await work.textContent())?.match(/(\d+) runs?/)?.[1]);
+    expect(workCount).toBeGreaterThan(0);
+    const filedBefore = Object.keys((await saved(page)).runFolders ?? {}).length;
+    await page.getByRole('button', { name: 'Delete Client work' }).click();
+    const confirm = page.getByRole('group', { name: 'Delete Client work?' });
+    await expect(confirm).toContainText(`Its ${workCount} runs go back to Unfiled.`);
+    await page.keyboard.press('Escape');
+    await expect(confirm).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Delete Client work' })).toBeFocused();
+    await page.getByRole('button', { name: 'Delete Client work' }).click();
+    await confirm.getByRole('button', { name: 'Delete folder' }).click();
+    await expect(message).toHaveText('Deleted "Client work". Its runs are unfiled.');
+    await expect(list.getByRole('listitem')).toHaveCount(3);
+    await expect(page.getByTestId('run-list').getByRole('option')).toHaveCount(runsBefore);
+
+    // Saved in the app's settings and still there after a reload.
+    const s = await saved(page);
+    expect(s.folders.map((f: { name: string }) => f.name)).toEqual(['Side projects', 'Someday', 'Papers']);
+    expect(Object.keys(s.runFolders).length).toBe(filedBefore - workCount);
+    await page.reload();
+    await ready(page);
+    await openSettings(page);
+    await expect(page.getByRole('list', { name: 'Run folders' }).getByRole('listitem')).toHaveCount(3);
+    await expect(page.getByRole('list', { name: 'Run folders' })).toContainText('Papers');
+  });
+
   test('runs, notifications, system and privacy settings save and apply', async ({ page }) => {
     await gotoSettings(page);
     await group(page, 'Refresh rate').getByRole('radio', { name: 'Every 5 s' }).check();

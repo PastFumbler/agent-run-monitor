@@ -11,6 +11,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { IPC, type AppInfo, type RunFinishedNotice } from '@shared/ipc';
+import { applyFolderOp, type FolderResult } from '@shared/folders';
 import type { Settings, ThemeId } from '@shared/settings';
 import { ALL_ADAPTERS } from '@core/all-adapters';
 import { makeEnv } from '@core/env';
@@ -67,6 +68,14 @@ process.on('unhandledRejection', (e) => log(`unhandled rejection: ${(e as Error)
 let win: BrowserWindow | null = null;
 let ready = false;
 let settings: Settings;
+// Settings changes run one at a time, so a folder change and a settings patch never read the same
+// old settings and overwrite each other.
+let settingsChain: Promise<unknown> = Promise.resolve();
+function serialSettings<T>(fn: () => Promise<T>): Promise<T> {
+  const run = settingsChain.then(fn, fn);
+  settingsChain = run.catch(() => undefined);
+  return run;
+}
 let settingsFile: SettingsFile;
 let store: RunStore;
 let tempDir = '';
@@ -131,17 +140,28 @@ async function main(): Promise<void> {
         startup: { openLayout: OPEN_LAYOUT, e2e: E2E },
       }),
       getSettings: () => settings,
-      setSettings: async (patch) => {
-        const prev = settings;
-        const next = mergeSettings(prev, patch);
-        await settingsFile.save(next);
-        settings = next;
-        await store.updateSettings(next);
-        if (prev.startWithOs !== next.startWithOs && !E2E) {
-          await applyAutostart(next.startWithOs, env, log).catch((e) => log(`autostart: ${String(e)}`));
-        }
-        return next;
-      },
+      setSettings: (patch) =>
+        serialSettings(async () => {
+          const prev = settings;
+          const next = mergeSettings(prev, patch);
+          await settingsFile.save(next);
+          settings = next;
+          await store.updateSettings(next);
+          if (prev.startWithOs !== next.startWithOs && !E2E) {
+            await applyAutostart(next.startWithOs, env, log).catch((e) => log(`autostart: ${String(e)}`));
+          }
+          return next;
+        }),
+      // Folders are app-owned data in the settings file; agent files are never touched. Nothing the
+      // store watches changes, so the store is not told.
+      editFolders: (op) =>
+        serialSettings(async (): Promise<FolderResult> => {
+          const r = applyFolderOp(settings, op);
+          if (r.error) return r;
+          await settingsFile.save(r.settings);
+          settings = r.settings;
+          return r;
+        }),
       listRuns: () => store.listRuns(),
       getRun: (id, limit) => store.getDetail(id, limit),
       getSources: (rescan) => store.getSources(rescan),

@@ -6,7 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Nothing yet.
+### Added
+
+- **Run folders**: create, rename and delete folders in Settings > Folders. They are kept in the app's own settings, never in agent files; deleting a folder returns its runs to Unfiled.
 
 ## [0.1.0] - Not released yet
 

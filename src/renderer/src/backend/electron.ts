@@ -16,6 +16,7 @@ export class ElectronBackend implements Backend {
   appInfo = () => this.bridge.appInfo();
   getSettings = () => this.bridge.getSettings();
   setSettings: Backend['setSettings'] = (patch) => this.bridge.setSettings(patch);
+  editFolders: Backend['editFolders'] = (op) => this.bridge.editFolders(op);
   listRuns = () => this.bridge.listRuns();
   getRun: Backend['getRun'] = (id, limit) => this.bridge.getRun(id, limit);
   getSources: Backend['getSources'] = (rescan) => this.bridge.getSources(rescan);

@@ -5,6 +5,7 @@ import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents }
 import path from 'node:path';
 import { IPC } from '@shared/ipc';
 import { AGENT_IDS } from '@shared/schema';
+import { parseFolderOp, type FolderOp } from '@shared/folders';
 import type { Settings, SourceSettings } from '@shared/settings';
 import { normalizeSettings } from '@shared/settings';
 import { isAppUrl } from './security';
@@ -13,6 +14,7 @@ export interface IpcImpl {
   appInfo(): unknown;
   getSettings(): unknown;
   setSettings(patch: Partial<Settings>): Promise<unknown>;
+  editFolders(op: FolderOp): Promise<unknown>;
   listRuns(): unknown;
   getRun(id: string, limit: number): Promise<unknown>;
   getSources(rescan: boolean): Promise<unknown>;
@@ -43,6 +45,12 @@ export function validLimit(v: unknown): number {
 export function validIds(v: unknown): string[] {
   if (!Array.isArray(v)) throw new BadRequest('bad id list');
   return v.slice(0, 100).filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length < 200);
+}
+
+export function validFolderOp(v: unknown): FolderOp {
+  const op = parseFolderOp(v);
+  if (!op) throw new BadRequest('bad folder change');
+  return op;
 }
 
 export function validInterval(v: unknown): number {
@@ -112,6 +120,7 @@ export function registerIpc(impl: IpcImpl, opts: { window: () => WebContents | u
   handle(IPC.appInfo, () => impl.appInfo());
   handle(IPC.getSettings, () => impl.getSettings());
   handle(IPC.setSettings, (patch) => impl.setSettings(patch as Partial<Settings>));
+  handle(IPC.editFolders, (op) => impl.editFolders(validFolderOp(op)));
   handle(IPC.listRuns, () => impl.listRuns());
   handle(IPC.getRun, (id, limit) => impl.getRun(validId(id), validLimit(limit)));
   handle(IPC.getSources, (rescan) => impl.getSources(rescan === true));

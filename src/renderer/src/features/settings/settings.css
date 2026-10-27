@@ -584,6 +584,46 @@
   font-size: 0.86rem;
 }
 
+/* Run folders (Settings > Folders): reuses .folders / .folders__item for the list. */
+.run-folder__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.run-folder__count {
+  flex: 1 1 auto;
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.run-folder__confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.run-folder__question {
+  font-size: 0.86rem;
+}
+
+.run-folder__form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 460px;
+}
+
+.run-folder__form .input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .path {
   min-width: 0;
   overflow: hidden;
