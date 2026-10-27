@@ -1,0 +1,110 @@
+/*
+ * Source: https://github.com/DavidHDev/react-bits/blob/e12c22192ac7b4b452c5e2feb9b586d74765d696/src/ts-default/Micro/StatusMark/StatusMark.css
+ * StatusMark styles, vendored from React Bits (src/ts-default/Micro/StatusMark/StatusMark.css,
+ * commit e12c22192ac7b4b452c5e2feb9b586d74765d696). Copyright (c) 2026 David Haz.
+ * Licensed under MIT + Commons Clause (see THIRD_PARTY_NOTICES.md).
+ * Modified for Agent Run Monitor: per-status shapes, theme colour variables, CSS spin gated by
+ * data-spin (motion policy), no reduced-motion breathe loop, draw-in length from the policy.
+ */
+
+.status-mark {
+  --sm-size: 16px;
+  --sm-stroke: 2;
+  --sm-draw: 200ms;
+  --sm-color: var(--status-idle);
+  --sm-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--sm-size);
+  height: var(--sm-size);
+  vertical-align: middle;
+  line-height: 1;
+  color: var(--sm-color);
+}
+
+.status-mark[data-status='running'] { --sm-color: var(--status-running); }
+.status-mark[data-status='waiting'] { --sm-color: var(--status-waiting); }
+.status-mark[data-status='idle'] { --sm-color: var(--status-idle); }
+.status-mark[data-status='done'] { --sm-color: var(--status-done); }
+.status-mark[data-status='failed'] { --sm-color: var(--status-failed); }
+.status-mark[data-status='stuck'] { --sm-color: var(--status-stuck); }
+.status-mark[data-status='unreadable'] { --sm-color: var(--status-unreadable); }
+
+.status-mark__glyph {
+  display: block;
+  flex: none;
+  overflow: visible;
+}
+
+.status-mark[data-spin] .status-mark__glyph {
+  animation: sm-spin 1100ms linear infinite;
+}
+
+@keyframes sm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.status-mark__track {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--sm-stroke);
+  stroke-opacity: 0.22;
+}
+
+.status-mark__ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--sm-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.status-mark__ring--dashed {
+  stroke-dasharray: 2.6 2.4;
+  stroke-linecap: butt;
+}
+
+.status-mark__fill {
+  fill: currentColor;
+  fill-opacity: 0.12;
+  stroke: none;
+}
+
+.status-mark__glyph-path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--sm-stroke);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.status-mark__slash {
+  stroke-width: calc(var(--sm-stroke) * 0.9);
+}
+
+/* Upstream's check/cross draw-in, kept short and only when the policy animates. */
+.status-mark__draw {
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 0;
+  animation: sm-draw var(--sm-draw) var(--sm-ease-out) both;
+}
+
+@keyframes sm-draw {
+  from {
+    stroke-dashoffset: 1.05;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+:root[data-reduce-motion] .status-mark__draw,
+:root[data-hidden] .status-mark__draw {
+  animation: none;
+}

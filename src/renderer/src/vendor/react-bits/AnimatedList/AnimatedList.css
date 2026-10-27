@@ -1,0 +1,38 @@
+/*
+ * Source: https://github.com/DavidHDev/react-bits/blob/e12c22192ac7b4b452c5e2feb9b586d74765d696/src/ts-default/Components/AnimatedList/AnimatedList.css
+ * AnimatedList tile styles, vendored from React Bits (src/ts-default/Components/AnimatedList/AnimatedList.css,
+ * commit e12c22192ac7b4b452c5e2feb9b586d74765d696). Copyright (c) 2026 David Haz.
+ * Licensed under MIT + Commons Clause (see THIRD_PARTY_NOTICES.md).
+ * Modified for Agent Run Monitor: no backdrop-filter frame, no box-shadows, no brightness filters, no
+ * mask fades; theme surfaces with a hairline border; selected and hover states change the background.
+ */
+
+.animated-list__item {
+  box-sizing: border-box;
+  padding: 2px 8px;
+}
+
+.animated-list__tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.animated-list__item:hover .animated-list__tile {
+  background: var(--hover);
+}
+
+.animated-list__item[data-selected] .animated-list__tile {
+  background: var(--selected);
+  border-color: var(--border);
+}

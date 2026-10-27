@@ -1,0 +1,164 @@
+/*
+ * Source: https://github.com/DavidHDev/react-bits/blob/e12c22192ac7b4b452c5e2feb9b586d74765d696/src/ts-default/Micro/CallChip/CallChip.css
+ * CallChip styles, vendored from React Bits (src/ts-default/Micro/CallChip/CallChip.css,
+ * commit e12c22192ac7b4b452c5e2feb9b586d74765d696). Copyright (c) 2026 David Haz.
+ * Licensed under MIT + Commons Clause (see THIRD_PARTY_NOTICES.md).
+ * Modified for Agent Run Monitor: theme colours, a visible border (not a shade) as the chip edge,
+ * no blur or clip-path transitions, durations from the motion policy, compact size, text-safe
+ * colours for the "failed" word, truncating argument.
+ */
+
+.call-chip {
+  --cc-size: 28px;
+  --cc-font: 13px;
+  --cc-pad: 10px;
+  --cc-gap: 7px;
+  --cc-expected: 2500ms;
+  --cc-fade: 200ms;
+  --cc-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-gap);
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  height: var(--cc-size);
+  padding: 0 var(--cc-pad);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--raised);
+  color: var(--text);
+  font-size: var(--cc-font);
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.call-chip__fill {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--status-running) 10%, transparent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.call-chip[data-status='running'] .call-chip__fill {
+  transition: transform var(--cc-expected) linear;
+}
+
+.call-chip[data-status='done'] .call-chip__fill {
+  background: color-mix(in srgb, var(--status-done) 10%, transparent);
+  opacity: 0;
+  transition:
+    transform var(--cc-fade) var(--cc-ease-out),
+    opacity 400ms var(--cc-ease-out) 200ms;
+}
+
+.call-chip[data-status='error'] {
+  border-color: var(--status-failed);
+}
+
+.call-chip[data-status='error'] .call-chip__fill {
+  background: color-mix(in srgb, var(--status-failed) 12%, transparent);
+}
+
+.call-chip:not([data-mounted]) .call-chip__fill,
+.call-chip:not([data-mounted]) .call-chip__glyph {
+  transition: none !important;
+}
+
+.call-chip__slot {
+  position: relative;
+  flex: none;
+  width: calc(var(--cc-font) + 2px);
+  height: calc(var(--cc-font) + 2px);
+  overflow: hidden;
+}
+
+.call-chip__glyph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  transform: translateY(70%);
+}
+
+.call-chip__glyph[data-state='in'] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity var(--cc-fade) var(--cc-ease-out),
+    transform var(--cc-fade) var(--cc-ease-out);
+}
+
+.call-chip__glyph[data-state='out'] {
+  transform: translateY(-70%);
+  transition:
+    opacity var(--cc-fade) var(--cc-ease-out),
+    transform var(--cc-fade) var(--cc-ease-out);
+}
+
+.call-chip[data-status='running'] .call-chip__glyph[data-state='in'] {
+  color: var(--status-running);
+}
+
+.call-chip[data-status='done'] .call-chip__glyph[data-state='in'] {
+  color: var(--status-done);
+}
+
+.call-chip[data-status='error'] .call-chip__glyph[data-state='in'] {
+  color: var(--status-failed);
+}
+
+.call-chip__name,
+.call-chip__arg,
+.call-chip__timer,
+.call-chip__state {
+  position: relative;
+}
+
+.call-chip__name {
+  flex: none;
+  font-weight: 600;
+}
+
+.call-chip__arg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+.call-chip__state {
+  flex: none;
+  color: var(--status-failed-text);
+  font-weight: 600;
+}
+
+.call-chip__timer {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-muted);
+}
+
+.call-chip__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+:root[data-reduce-motion] .call-chip__glyph,
+:root[data-low-gpu] .call-chip__glyph {
+  transform: none !important;
+}

@@ -1,0 +1,194 @@
+/*
+ * Source: https://github.com/DavidHDev/react-bits/blob/e12c22192ac7b4b452c5e2feb9b586d74765d696/src/ts-default/Micro/ThoughtLine/ThoughtLine.css
+ * ThoughtLine styles, vendored from React Bits (src/ts-default/Micro/ThoughtLine/ThoughtLine.css,
+ * commit e12c22192ac7b4b452c5e2feb9b586d74765d696). Copyright (c) 2026 David Haz.
+ * Licensed under MIT + Commons Clause (see THIRD_PARTY_NOTICES.md).
+ * Modified for Agent Run Monitor: shimmer and pulse only under [data-shimmer]/[data-animated] (motion
+ * policy), no blur, :focus-visible outline on the head, wrapping steps, theme colours, no
+ * grid-template-rows collapse animation (the trace uses the hidden attribute).
+ */
+
+.thought-line {
+  --tl-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --tl-font: 14px;
+  --tl-settle: 200ms;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--tl-font);
+  line-height: 1.3;
+}
+
+.thought-line__head {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  margin: 0;
+  padding: 2px 4px;
+  margin-left: -4px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.thought-line__head[data-toggle] {
+  cursor: pointer;
+}
+
+.thought-line__head[data-toggle]:hover {
+  background: var(--hover);
+}
+
+.thought-line__head:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.thought-line__glyph {
+  display: inline-flex;
+  flex: none;
+  width: 1.05em;
+  height: 1.05em;
+  color: var(--status-stuck);
+}
+
+.thought-line__glyph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.thought-line__label {
+  display: inline-grid;
+}
+
+.thought-line__text {
+  width: max-content;
+}
+
+.thought-line[data-working] .thought-line__text[data-shimmer] {
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--text) 62%, transparent) 30%,
+    var(--text) 50%,
+    color-mix(in srgb, var(--text) 62%, transparent) 70%
+  );
+  background-size: 250% 100%;
+  background-position: 125% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: thought-line-shimmer 1.8s linear infinite;
+}
+
+@keyframes thought-line-shimmer {
+  to {
+    background-position: -125% 0;
+  }
+}
+
+.thought-line__timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.thought-line__chevron {
+  display: inline-flex;
+  margin-left: 0.1em;
+  color: var(--text-muted);
+  transition: transform var(--tl-settle) var(--tl-ease-out);
+}
+
+.thought-line[data-open] .thought-line__chevron {
+  transform: rotate(180deg);
+}
+
+.thought-line__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.thought-line__trace {
+  width: 100%;
+  min-width: 0;
+}
+
+.thought-line__trace[hidden] {
+  display: none;
+}
+
+.thought-line__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 0.45em 0 0.15em 1.45em;
+  font-size: 0.95em;
+  font-weight: 400;
+}
+
+.thought-line__step {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.thought-line__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1em;
+  height: 1em;
+  color: var(--text-muted);
+  transform: translateY(0.12em);
+}
+
+.thought-line__pulse {
+  display: block;
+  width: 0.4em;
+  height: 0.4em;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.thought-line__pulse[data-animated] {
+  animation: thought-line-pulse 1.6s cubic-bezier(0.77, 0, 0.175, 1) infinite;
+}
+
+@keyframes thought-line-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.thought-line__step-text {
+  min-width: 0;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.thought-line__step[data-done] .thought-line__step-text {
+  color: var(--text-muted);
+}
