@@ -58,7 +58,7 @@ export function CommandPalette() {
                     close();
                   }}
                 >
-                  <StatusMark status={r.status} size={15} decorative />
+                  <StatusMark status={r.status} size={15} decorative still />
                   <span className="palette__title">{r.title || 'Untitled run'}</span>
                   <span className="palette__meta">
                     {AGENT_NAMES[r.agent]} · {r.projectName} · {SHORT_LABELS[r.status]} · {relativeTime(r.updatedAt, now)}

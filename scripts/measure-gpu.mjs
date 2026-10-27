@@ -325,7 +325,22 @@ async function runCondition(name, label, { lowGpu, liveIds, grid, minimise }) {
       await page.waitForFunction(() => Number(document.querySelector('[data-testid="mv-grid"]')?.getAttribute('data-tile-count')) === 12, null, { timeout: 60_000 });
     } else {
       await page.waitForFunction(() => document.querySelectorAll('[data-testid="run-list"] [role="option"]').length > 0, null, { timeout: 60_000 });
-      await app.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0].webContents.send('arm:ev:openRun', id), liveIds[0]);
+      // The renderer ignores openRun for a run it has not loaded yet (App.tsx), so resend it until main
+      // sees the renderer watch that run; otherwise the measurement runs on whatever run opened by default.
+      await app.evaluate(({ ipcMain }) => {
+        globalThis.__armLastWatch = null;
+        ipcMain.on('arm:watchRuns', (_e, ids) => {
+          globalThis.__armLastWatch = ids;
+        });
+      });
+      let opened = false;
+      for (let t = 0; t < 60 && !opened; t++) {
+        await app.evaluate(({ BrowserWindow }, id) => BrowserWindow.getAllWindows()[0].webContents.send('arm:ev:openRun', id), liveIds[0]);
+        await sleep(1000);
+        const lw = await app.evaluate(() => globalThis.__armLastWatch);
+        opened = Array.isArray(lw) && lw.includes(liveIds[0]);
+      }
+      if (!opened) throw new Error(`${label}: the live run never opened`);
       await page.waitForSelector('.runview', { timeout: 30_000 });
     }
     await showWindow(app);

@@ -85,6 +85,11 @@ export interface RunSummary {
   status: RunStatus;
   /** Plain words that explain the status, e.g. "Waiting for tool approval". */
   statusDetail?: string;
+  /**
+   * True when the status is inferred, not recorded: the agent's files cannot show an approval
+   * prompt, so a quiet open tool call is read as waiting. The UI then says "Probably waiting for you".
+   */
+  statusInferred?: boolean;
   counts: RunCounts;
   /** Where the run was read from, shown in Overview so users can find the file. */
   sourcePath: string;

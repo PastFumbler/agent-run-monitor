@@ -44,3 +44,26 @@ export function pickLatestRun(
   }
   return null;
 }
+
+export interface DoneCountInput {
+  /** Runs the switched-on sources found in the detection step (null until it is known). */
+  detected: number | null;
+  /** Runs in the list so far. */
+  listed: number;
+  /** The first run list has arrived. */
+  listLoaded: boolean;
+  /** Initial-load progress from the backend (null once everything is read). */
+  progress: { parsed: number; total: number } | null;
+}
+
+/**
+ * The Done step's "Watching N runs". While the app is still reading runs, the list holds only part
+ * of them, so N is the larger of what detection found and what the backend says it is reading, with
+ * "(still reading…)" after it. Once reading is over, the list is the truth. `empty` picks the
+ * "no runs yet" screen, never while reading.
+ */
+export function doneCount(i: DoneCountInput): { runs: number; reading: boolean; empty: boolean } {
+  const reading = !i.listLoaded || (!!i.progress && i.progress.parsed < i.progress.total);
+  if (reading) return { runs: Math.max(i.detected ?? 0, i.progress?.total ?? 0, i.listed), reading, empty: false };
+  return { runs: i.listed, reading, empty: i.listed === 0 };
+}

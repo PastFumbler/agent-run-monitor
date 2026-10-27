@@ -206,7 +206,7 @@ export const Tile = memo(function Tile({ id, position, total, inView, observe, o
                 <span className="mv-tile__status">
                   <StatusMark status={run.status} size={14} decorative />
                   <span className="status-text" data-status={run.status} data-testid="mv-tile-status">
-                    {run.status === 'stuck' || run.status === 'waiting' ? plainStatus(run.status, run.statusDetail) : STATUS_LABELS[run.status]}
+                    {run.status === 'stuck' || run.status === 'waiting' ? plainStatus(run.status, run.statusDetail, run.statusInferred) : STATUS_LABELS[run.status]}
                   </span>
                 </span>
                 <span className="mv-tile__meta">

@@ -4,6 +4,8 @@
 //   <root>/projects/<enc>/<sid>/subagents/workflows/wf_<id>/journal.jsonl   workflow run
 //   <root>/projects/<enc>/<sid>/subagents/workflows/wf_<id>/agent-<id>.jsonl workflow agent
 // Layout verified against a real install (8 sessions, 12 sub-agents, 57 workflow runs).
+// A custom root may also be the folder holding .claude, a projects folder, or one <encoded-cwd>
+// folder (see layoutOf).
 
 import { basename, join, resolve } from 'node:path';
 import type { DiscoverContext, SessionRef } from '../../adapter';
@@ -24,8 +26,13 @@ const STAT_BATCH = 64;
 export async function discover(roots: string[], ctx: DiscoverContext): Promise<SessionRef[]> {
   const candidates: Candidate[] = [];
   for (const root of roots) {
-    const projects = await projectsDir(root);
-    if (!projects) continue;
+    const layout = await layoutOf(root);
+    if (!layout) continue;
+    if ('project' in layout) {
+      candidates.push(...(await discoverProject(layout.project, basename(layout.project))));
+      continue;
+    }
+    const projects = layout.projects;
     const dirs = (await listDir(projects)).filter((d) => d.isDirectory());
     const found = await Promise.all(dirs.map((d) => discoverProject(join(projects, d.name), d.name)));
     for (const list of found) candidates.push(...list);
@@ -54,13 +61,31 @@ export async function discover(roots: string[], ctx: DiscoverContext): Promise<S
   return out;
 }
 
-/** `<root>/projects`, or the root itself when the user pointed straight at a projects folder. */
-async function projectsDir(root: string): Promise<string | undefined> {
+/** Claude Code names a main session file by its session id, a UUID. */
+const SESSION_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/i;
+/** How many sub-folders to look into when guessing whether a folder is a renamed projects folder. */
+const PEEK_FOLDERS = 64;
+
+const holdsSessions = (entries: { name: string; isFile(): boolean }[]) => entries.some((e) => e.isFile() && SESSION_FILE.test(e.name));
+
+/**
+ * What a root is. Users add custom folders at every level, so each is accepted:
+ * - the config folder (`<root>/projects`), or the folder that holds `.claude` (their home folder);
+ * - a projects folder itself (named `projects`, or a renamed copy whose sub-folders hold sessions);
+ * - one project folder that directly holds `<session-id>.jsonl` files.
+ */
+async function layoutOf(root: string): Promise<{ projects: string } | { project: string } | undefined> {
   if (!root) return undefined;
-  const inner = join(root, 'projects');
-  if ((await statOrNull(inner))?.isDir) return inner;
-  if (basename(root) === 'projects' && (await statOrNull(root))?.isDir) return root;
-  return undefined;
+  for (const inner of [join(root, 'projects'), join(root, '.claude', 'projects')]) {
+    if ((await statOrNull(inner))?.isDir) return { projects: inner };
+  }
+  if (!(await statOrNull(root))?.isDir) return undefined;
+  if (basename(root) === 'projects') return { projects: root };
+  const entries = await listDir(root);
+  if (holdsSessions(entries)) return { project: root };
+  const subs = entries.filter((e) => e.isDirectory()).slice(0, PEEK_FOLDERS);
+  const peeks = await Promise.all(subs.map(async (d) => holdsSessions(await listDir(join(root, d.name)))));
+  return peeks.some(Boolean) ? { projects: root } : undefined;
 }
 
 async function discoverProject(projDir: string, folder: string): Promise<Candidate[]> {

@@ -15,6 +15,7 @@
  * - role="status" and the spoken announcement are opt-in (`live`), so long lists don't flood
  *   screen readers.
  * - Colours default to theme CSS variables.
+ * - `still`: the static lit pattern even when the policy allows loops (run-list rows other than the open run).
  */
 
 import React, { useEffect, useState, type CSSProperties } from 'react';
@@ -60,6 +61,8 @@ export interface LatticeLoaderProps {
   elapsed?: number;
   /** Announce status changes to screen readers (role="status"). Off in lists. */
   live?: boolean;
+  /** Show the static lit pattern even when the motion policy allows the loop. */
+  still?: boolean;
   className?: string;
   style?: CSSProperties;
 }
@@ -124,6 +127,7 @@ const LatticeLoader: React.FC<LatticeLoaderProps> = ({
   since,
   elapsed,
   live = false,
+  still = false,
   className = '',
   style,
 }) => {
@@ -134,7 +138,7 @@ const LatticeLoader: React.FC<LatticeLoaderProps> = ({
   const d = step * pat.scale;
   const cycle = Math.round(pat.loop * d);
   const mark = status === 'error' ? 'error' : 'done';
-  const animated = status === 'working' && policy.allowInfinite;
+  const animated = status === 'working' && policy.allowInfinite && !still;
   // Static frame: light the cells near the start of the pattern so it still reads as "in motion".
   const staticLit = (unit: number | null) => unit != null && unit <= 1;
 

@@ -108,7 +108,7 @@ export function FilterChips({ model }: { model: RunListModel }) {
               onToggle={() => toggleStatus(s)}
               label={SHORT_LABELS[s]}
               count={model.statusCounts[s] ?? 0}
-              icon={<StatusMark status={s} size={12} decorative />}
+              icon={<StatusMark status={s} size={12} decorative still />}
             />
           ))}
         </div>
@@ -291,6 +291,7 @@ export function RunList({ model }: { model: RunListModel }) {
                   optionId={row.section === 'recent' ? `${listId}-recent-${row.run.id}` : `${listId}-${row.run.id}`}
                   current={row.run.id === currentId}
                   cursor={row.run.id === cursorId && row.section !== 'recent'}
+                  animate={row.run.id === currentId && row.section !== 'recent'}
                   inMulti={multiSet.has(row.run.id)}
                   entering={entering.current.has(row.run.id)}
                   now={now}

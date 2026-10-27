@@ -31,7 +31,7 @@ export function StatusBar({ all }: { all: RunSummary[] }) {
         </span>
         {RUN_STATUSES.filter((s) => counts[s]).map((s) => (
           <span key={s} className="statusbar__count" data-testid={`count-${s}`}>
-            <StatusMark status={s} size={12} decorative />
+            <StatusMark status={s} size={12} decorative still />
             <b>{counts[s]}</b> {SHORT_LABELS[s].toLowerCase()}
           </span>
         ))}

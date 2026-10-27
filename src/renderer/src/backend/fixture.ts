@@ -15,6 +15,7 @@ import type {
   UpdateInfo,
   Unsubscribe,
 } from '@shared/ipc';
+import { AGENT_CONFIDENCE } from '@shared/agents';
 import { AGENT_IDS, AGENT_NAMES, type RunDetail, type RunStatus, type RunSummary, type SourceStatus } from '@shared/schema';
 import { defaultSettings, normalizeSettings, type Settings } from '@shared/settings';
 import { setClockTo, shiftClock, nowMs } from './clock';
@@ -210,14 +211,14 @@ export class FixtureBackend implements Backend {
       'claude-code': '/home/demo/.claude/projects',
       codex: '/home/demo/.codex/sessions',
       'gemini-cli': '/home/demo/.gemini/tmp',
-      'qwen-code': '/home/demo/.qwen/tmp',
+      'qwen-code': '/home/demo/.qwen/projects',
       'copilot-vscode': '/home/demo/.config/Code/User/workspaceStorage',
       'copilot-cli': '/home/demo/.copilot/session-state',
       aider: '/home/demo/code',
       cursor: '/home/demo/.config/Cursor/User/globalStorage',
       cline: '/home/demo/.config/Code/User/globalStorage/saoudrizwan.claude-dev/tasks',
       'roo-code': '/home/demo/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline/tasks',
-      opencode: '/home/demo/.local/share/opencode/storage',
+      opencode: '/home/demo/.local/share/opencode',
       continue: '/home/demo/.continue/sessions',
     };
     return AGENT_IDS.map((agent, i) => {
@@ -231,7 +232,8 @@ export class FixtureBackend implements Backend {
         customRoots: (this.settings.sources[agent]?.customRoots ?? []).map((path) => ({ path, exists: true })),
         runCount: exists ? n : 0,
         note: `Demo data: reads ${agent === 'cursor' ? 'a SQLite database (copied first)' : 'session files'} read-only.`,
-        confidence: i % 3 === 0 ? 'verified' : i % 3 === 1 ? 'source' : 'best-effort',
+        // The adapters' real confidence (agents.test.ts keeps AGENT_CONFIDENCE in step with them).
+        confidence: AGENT_CONFIDENCE[agent],
       } satisfies SourceStatus;
     });
   }

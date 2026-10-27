@@ -683,3 +683,14 @@
 :root[data-low-gpu] :is(.settings, .wizard) *::after {
   transition-property: opacity, transform !important;
 }
+
+/* After adding a custom folder: "Looking in this folder…", then which folder to pick when it found nothing. */
+.source__folder-check {
+  margin: 6px 0 0;
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.source__folder-check:empty {
+  margin: 0;
+}

@@ -15,6 +15,8 @@
  *   motion policy allows infinite animation; the reduced-motion "breathe" loop is removed.
  * - Colours come from theme CSS variables (--status-*), not hex props.
  * - Accessible name from the app's status words; optional `decorative` when the word is shown next to it.
+ * - `still`: never spin, whatever the policy (run-list rows other than the open run, counts, chips), so a
+ *   busy list does not keep dozens of infinite animations going. The arc shape stays distinct.
  */
 
 import React, { useRef, type CSSProperties } from 'react';
@@ -32,6 +34,8 @@ export interface StatusMarkProps {
   label?: string;
   /** Hide from assistive tech when the status word is already shown as text. */
   decorative?: boolean;
+  /** Never spin (the running arc stays as a static shape). For lists and counters. */
+  still?: boolean;
   size?: number;
   strokeWidth?: number;
   title?: string;
@@ -63,6 +67,7 @@ const StatusMark: React.FC<StatusMarkProps> = ({
   status,
   label,
   decorative = false,
+  still = false,
   size = 16,
   strokeWidth = 2,
   title,
@@ -72,7 +77,7 @@ const StatusMark: React.FC<StatusMarkProps> = ({
   const policy = useMotionPolicy();
   const r = 10 - strokeWidth / 2;
   const C = 2 * Math.PI * r;
-  const spin = status === 'running' && policy.allowInfinite;
+  const spin = status === 'running' && policy.allowInfinite && !still;
   const spoken = label ?? STATUS_LABELS[status];
   const shape = STATUS_SHAPES[status];
   // Draw the check/cross in only when the status changes while mounted (not on every list mount).

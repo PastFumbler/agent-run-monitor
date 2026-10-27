@@ -109,3 +109,32 @@ export function detectionSummary(list: SourceStatus[]): { runs: number; agents: 
       : `We found ${plural(runs, 'run')} from ${plural(agents, 'agent')}.`;
   return { runs, agents, text };
 }
+
+/** Runs the switched-on sources found (what the app will watch once everything is read). */
+export function watchedRunCount(list: SourceStatus[], sources: Record<AgentId, SourceSettings>): number {
+  return list.filter((s) => sources[s.agent]?.enabled ?? s.enabled).reduce((n, s) => n + s.runCount, 0);
+}
+
+/**
+ * What the right folder holds, per agent, for the "no sessions in this folder" hint shown after a
+ * custom folder finds nothing. Each names a folder the adapter accepts as a root.
+ */
+export const FOLDER_HINTS: Record<AgentId, string> = {
+  'claude-code': 'the .claude folder or its projects folder',
+  codex: 'the .codex folder or its sessions folder',
+  'gemini-cli': "Gemini's tmp folder (usually the .gemini folder)",
+  'qwen-code': "Qwen's projects folder (usually the .qwen folder)",
+  'copilot-vscode': "workspaceStorage (VS Code's User folder)",
+  'copilot-cli': 'one folder per session (usually .copilot/session-state)',
+  aider: 'a .aider.chat.history.md file, or add your code folder under Project folders',
+  cursor: "globalStorage (Cursor's User folder)",
+  cline: "Cline's tasks folder (its folder in VS Code's globalStorage)",
+  'roo-code': "Roo Code's tasks folder (its folder in VS Code's globalStorage)",
+  opencode: "opencode.db or a storage folder (OpenCode's data folder)",
+  continue: "Continue's session files (usually .continue/sessions)",
+};
+
+/** Plain words for a custom folder in which the agent's sessions were not found. */
+export function emptyFolderText(agent: AgentId, displayName: string): string {
+  return `No ${displayName} sessions found in this folder. Pick the folder that contains ${FOLDER_HINTS[agent]}.`;
+}

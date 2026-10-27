@@ -6,7 +6,8 @@
 // - f / double-click / the tile button maximise the focused tile; the others stay mounted, hidden and
 //   paused; Esc restores (useShortcuts). 1-5 switch the focused tile's view; ← / → move between tiles.
 // - Only the tiles that can be seen are watched (backend.watchRuns): this page, minus tiles behind a
-//   maximised one and tiles scrolled out of view (one IntersectionObserver on the grid).
+//   maximised one and tiles scrolled out of view (one IntersectionObserver on the grid). In low-GPU mode
+//   main also pushes detail for the unfocused tiles at most every 3 s (backend.setWatchPriority).
 // - Selections can be saved as named layouts and reopened (settings.layouts).
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type RefCallback, type RefObject } from 'react';
@@ -23,12 +24,14 @@ import {
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Add01Icon, ArrowLeft01Icon, ArrowRight01Icon, FloppyDiskIcon, Layout01Icon } from '@hugeicons/core-free-icons';
 import { RUN_VIEWS } from '@shared/settings';
+import { getBackend } from '../../backend';
 import { Icon } from '../../components/Icon';
 import { useMotionPolicy } from '../../motion/context';
 import { useStore } from '../../store/store';
 import { useWatchRuns } from '../runview/useRunDetail';
 import { LayoutList, LayoutsDialog, RunPicker, SaveLayoutDialog } from './dialogs';
 import { gridFor, gridLabel, paginate } from './grid';
+import { LOW_GPU_UNFOCUSED_MS } from './throttle';
 import { Tile } from './Tile';
 import './multiview.css';
 
@@ -151,6 +154,15 @@ export function MultiView() {
     [itemsKey, maximized, offscreen],
   );
   useWatchRuns('multiview', watched);
+
+  // Low-GPU mode: the unfocused tiles only render every 3 s, so main need not push their detail more
+  // often either. Cleared when low-GPU mode ends and when the multiviewer closes.
+  const lowGpu = policy.lowGpu;
+  useEffect(() => {
+    const focus = lowGpu ? [...new Set([focusedTile, maximized].filter((x): x is string => !!x))] : [];
+    getBackend().setWatchPriority?.(focus, lowGpu ? LOW_GPU_UNFOCUSED_MS : 0);
+  }, [lowGpu, focusedTile, maximized]);
+  useEffect(() => () => getBackend().setWatchPriority?.([], 0), []);
 
   const goPage = useCallback((p: number) => {
     const st = useStore.getState();

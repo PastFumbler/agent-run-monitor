@@ -1,13 +1,13 @@
 // A minimised window in the real app: <html data-hidden> is set and run updates reach the window
 // at most once every 5 s, while two synthetic sessions keep growing every 300 ms. Pushes are counted
-// in the main process by wrapping webContents.send (runsUpdate and runDetail channels). A visible
+// in the main process by wrapping webContents.send (runsUpdate and runDetails channels). A visible
 // phase first shows that the same counter sees frequent pushes, so the hidden check can fail.
 
 import { expect, test, type ElectronApplication } from '@playwright/test';
 import path from 'node:path';
 import { baseSettings, launchApp, removeDir, SessionWriter, tempDir, waitForRuns, type Launched } from './helpers';
 
-const PUSH_CHANNELS = ['arm:ev:runsUpdate', 'arm:ev:runDetail'];
+const PUSH_CHANNELS = ['arm:ev:runsUpdate', 'arm:ev:runDetails'];
 const HIDDEN_MS = 5000;
 
 let home = '';

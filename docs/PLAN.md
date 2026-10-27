@@ -44,6 +44,8 @@ Libraries (all MIT or similar, all free):
 - Backend: chokidar (watching); Node's built-in `node:sqlite` (part of Electron's Node 24, so no native module) for Cursor; Node's built-in zstd for compressed Codex rollouts.
 - Tests: Vitest (unit, parsers, contrast, masking), Playwright (end to end, against the renderer in a browser with a fixture backend, and against the packaged Electron app).
 
+Only packages the main process loads at run time (chokidar) are `dependencies` in `package.json`. The UI libraries are `devDependencies`: Vite bundles them into `out/renderer`, so electron-builder does not also copy their `node_modules` folders into `app.asar` (which shrank it from about 54 MB and 13,000 files to about 2 MB).
+
 ## 3. Architecture
 
 ```
@@ -53,7 +55,7 @@ Libraries (all MIT or similar, all free):
 │ RunStore  ← Watcher (chokidar + poll) ← incremental readers (byte tail) │
 │        │      status clock (re-judges live runs every few seconds)      │
 │        │      masking (secrets → •••• before anything leaves main)      │
-│ Settings (JSON in userData) · Power (battery / saver) · Notifications   │
+│ Settings (JSON in userData) · Power (battery) · Notifications           │
 │ Autostart · Update check (off by default, the only network call)        │
 └────────┬────────────────────────────────────────────────────────────────┘
          │ typed IPC (preload contextBridge), batched + throttled
@@ -219,7 +221,7 @@ A failing theme fails CI, so it cannot ship.
 
 - **Motion policy** (`useMotionPolicy`): one hook that every animated component reads. Inputs: the "reduce motion" setting (Auto follows the OS `prefers-reduced-motion`), low-GPU mode, and window visibility. Outputs: `animate` (bool), `duration` (150–250 ms normally, about 120 ms in low-GPU mode), `allowInfinite`, `allowLayered` (shadows, blur, filters).
 - **Reduce motion** (accessibility): no movement; state changes become instant or a short cross-fade.
-- **Low-GPU mode** (performance; Off / On / Auto, default Auto). Auto turns it on when the OS reports battery power or energy-saver mode (Electron `powerMonitor`, plus the Windows energy-saver flag where available). When on: no backdrop-filter, blur, filters, layered shadows or canvas effects; animations are opacity/transform only, shorter and never infinite; live updates batch to once a second; unfocused multiviewer tiles update every 3 s.
+- **Low-GPU mode** (performance; Off / On / Auto, default Auto). Auto turns it on when the computer runs on battery (Electron `powerMonitor.isOnBatteryPower()` and its `on-battery` / `on-ac` events). Battery only: Electron exposes no energy-saver flag, and reading the OS setting would need a native module or a child process, which the app avoids for Smart App Control reasons (it starts no child processes and loads no native modules, see §9 phase 9). When on: no backdrop-filter, blur, filters, layered shadows or canvas effects; animations are opacity/transform only, shorter and never infinite; live updates batch to once a second; unfocused multiviewer tiles update every 3 s.
 - **Hidden window** (always on, not a setting): when minimised or hidden, all animation stops (a `data-hidden` attribute pauses every CSS animation and the motion policy stops JS animation) and updates batch every 5 s.
 - **Synonyms**: an active run's label rotates through words like Cogitating, Percolating, Noodling (React Bits Rotating Text; under low-GPU mode a plain text swap with no 3D flip). The rotating word is `aria-hidden`; screen readers hear the real status. Failed, stuck and errored runs show plain words immediately. Toggle in settings, on by default.
 - **Totally fake progress bar**: on running runs only, a bar with a confidently absurd ETA ("about 3 minutes and 14.159 seconds", lurching), captioned in small text "totally fake progress bar". It is never shown on finished or failed runs. Toggle in settings, on by default.

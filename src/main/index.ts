@@ -118,7 +118,8 @@ async function main(): Promise<void> {
   store = new RunStore({ adapters: registry.all(), env, tempDir, log: (_l, m) => log(m) });
   store.setUpdateInterval(rendererInterval);
   store.on('runsUpdate', (u) => send(IPC.evRunsUpdate, u));
-  store.on('runDetail', (d) => send(IPC.evRunDetail, d));
+  // One message per flush however many watched runs changed (the preload fans it out).
+  store.on('runDetails', (ds) => send(IPC.evRunDetails, ds));
   store.on('runFinished', (n) => onRunFinished(n));
 
   registerIpc(
@@ -163,6 +164,7 @@ async function main(): Promise<void> {
         rendererInterval = ms;
         store.setUpdateInterval(ms);
       },
+      setWatchPriority: (focused, slowMs) => store.setWatchPriority(focused, slowMs),
     },
     { window: () => win?.webContents, devOrigin: DEV_ORIGIN, log },
   );

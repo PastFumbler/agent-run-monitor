@@ -1,7 +1,8 @@
 // The run's status line: StatusMark (shape + colour), the visible label and a polite live region.
 // While running (and settings.synonyms is on) the visible label rotates through synonyms. Those words
 // are aria-hidden decoration; the live region announces only the real status, and only on change.
-// Waiting, failed, stuck and unreadable always show plain words, immediately.
+// Waiting, failed, stuck and unreadable always show plain words, immediately. A wait the agent's files
+// cannot record (RunSummary.statusInferred) reads "Probably waiting for you", visibly and in the live region.
 
 import { memo, useMemo } from 'react';
 import { STATUS_LABELS, type RunStatus } from '@shared/schema';
@@ -17,27 +18,36 @@ export function showsSynonyms(status: RunStatus, enabled: boolean): boolean {
   return enabled && status === 'running';
 }
 
+export const PROBABLY_WAITING = 'Probably waiting for you';
+
+/** The status word: STATUS_LABELS, except an inferred wait, which says "probably". */
+export function statusWord(status: RunStatus, inferred?: boolean): string {
+  return status === 'waiting' && inferred ? PROBABLY_WAITING : STATUS_LABELS[status];
+}
+
 /** Plain words for the status, with the detail where it matters ("Stuck: no activity for 23 min"). */
-export function plainStatus(status: RunStatus, detail?: string): string {
+export function plainStatus(status: RunStatus, detail?: string, inferred?: boolean): string {
   if (status === 'stuck' && detail) return `Stuck: ${detail.charAt(0).toLowerCase()}${detail.slice(1)}`;
-  return STATUS_LABELS[status];
+  return statusWord(status, inferred);
 }
 
 interface Props {
   runId: string;
   status: RunStatus;
   detail?: string;
+  /** The status is a guess (RunSummary.statusInferred): a wait then reads "Probably waiting for you". */
+  inferred?: boolean;
   synonyms: boolean;
   /** Announce status changes (one live region per screen; tiles pass false). */
   announce?: boolean;
   size?: number;
 }
 
-export const StatusLabel = memo(function StatusLabel({ runId, status, detail, synonyms, announce = true, size = 18 }: Props) {
+export const StatusLabel = memo(function StatusLabel({ runId, status, detail, inferred, synonyms, announce = true, size = 18 }: Props) {
   const policy = useMotionPolicy();
   const words = useMemo(() => synonymsFor(runId), [runId]);
   const rotate = showsSynonyms(status, synonyms);
-  const plain = plainStatus(status, detail);
+  const plain = plainStatus(status, detail, inferred);
 
   return (
     <span className="runview__status">
@@ -59,14 +69,14 @@ export const StatusLabel = memo(function StatusLabel({ runId, status, detail, sy
           )}
         </span>
       ) : (
-        <span className="status-text" data-status={status} data-testid="status-word">
+        <span className="status-text" data-status={status} data-inferred={inferred && status === 'waiting' ? '' : undefined} data-testid="status-word">
           {plain}
         </span>
       )}
       {detail && status !== 'stuck' && status !== 'unreadable' ? <span className="runview__status-detail">· {detail}</span> : null}
       {announce ? (
         <span className="sr-only" role="status" aria-live="polite" data-testid="run-status-live">
-          {`Status: ${STATUS_LABELS[status]}`}
+          {`Status: ${statusWord(status, inferred)}`}
         </span>
       ) : null}
     </span>

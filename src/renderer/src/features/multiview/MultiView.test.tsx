@@ -6,6 +6,8 @@ import { act, cleanup, render } from '@testing-library/react';
 import type { Backend } from '@shared/ipc';
 import type { RunSummary } from '@shared/schema';
 import { setBackendForTests } from '../../backend';
+import { MotionPolicyContext } from '../../motion/context';
+import { computeMotionPolicy } from '../../motion/policy';
 import { resetStore, useStore } from '../../store/store';
 import { MultiView } from './MultiView';
 
@@ -24,6 +26,8 @@ const run = (i: number): RunSummary => ({
 });
 
 let watchCalls: string[][] = [];
+let priorityCalls: [string[], number][] = [];
+const lastPriority = () => priorityCalls[priorityCalls.length - 1];
 const lastWatch = () => watchCalls[watchCalls.length - 1] ?? [];
 
 const noop = () => () => {};
@@ -33,6 +37,9 @@ const stub = {
     watchCalls.push([...ids].sort());
   },
   setUpdateInterval: () => {},
+  setWatchPriority: (focused: string[], slowMs: number) => {
+    priorityCalls.push([[...focused], slowMs]);
+  },
   setSettings: async () => useStore.getState().settings,
   onRunsUpdate: noop,
   onRunDetail: noop,
@@ -85,6 +92,7 @@ const tileEl = (id: string) => document.querySelector<HTMLElement>(`[data-tile-i
 beforeEach(() => {
   resetStore();
   watchCalls = [];
+  priorityCalls = [];
   FakeIO.all = [];
   (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver = FakeIO;
   setBackendForTests(stub);
@@ -137,5 +145,40 @@ describe('MultiView watch set', () => {
     setup(3);
     cleanup();
     expect(lastWatch()).toEqual([]);
+  });
+});
+
+describe('MultiView watch priority (low GPU)', () => {
+  const lowGpuPolicy = computeMotionPolicy({ reduceMotion: 'off', lowGpu: 'on', osReducedMotion: false, power: null, hidden: false });
+
+  function setupLowGpu(count: number) {
+    const runs = Array.from({ length: count }, (_, i) => run(i + 1));
+    useStore.setState({
+      runs: Object.fromEntries(runs.map((r) => [r.id, r])),
+      runsLoaded: true,
+      multi: runs.map((r) => r.id),
+      route: 'multiview',
+    });
+    render(
+      <MotionPolicyContext.Provider value={lowGpuPolicy}>
+        <MultiView />
+      </MotionPolicyContext.Provider>,
+    );
+    return runs.map((r) => r.id);
+  }
+
+  it('asks main to slow the unfocused tiles, follows the focus and clears on close', () => {
+    const ids = setupLowGpu(4);
+    expect(lastPriority()).toEqual([[ids[0]], 3000]);
+    act(() => useStore.getState().setFocusedTile(ids[2]));
+    expect(lastPriority()).toEqual([[ids[2]], 3000]);
+    cleanup();
+    expect(lastPriority()).toEqual([[], 0]);
+  });
+
+  it('sets no slow tiles when low GPU mode is off', () => {
+    setup(4);
+    expect(priorityCalls.length).toBeGreaterThan(0);
+    expect(priorityCalls.every(([f, ms]) => f.length === 0 && ms === 0)).toBe(true);
   });
 });

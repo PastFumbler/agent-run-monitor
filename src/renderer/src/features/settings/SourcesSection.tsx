@@ -4,14 +4,26 @@
 
 import { useState } from 'react';
 import { Alert02Icon, CheckmarkBadge01Icon, RefreshIcon, SourceCodeIcon, TestTubeIcon } from '@hugeicons/core-free-icons';
-import type { SourceStatus } from '@shared/schema';
+import type { AgentId, SourceStatus } from '@shared/schema';
 import { Icon } from '../../components/Icon';
 import { useStore } from '../../store/store';
 import { FolderList, PathMark, SwitchRow } from './controls';
-import { CONFIDENCE, plural, type Confidence } from './describe';
-import { addCustomRoot, addProjectRoot, removeCustomRoot, removeProjectRoot, setSourceEnabled, useSources } from './sourceActions';
+import { CONFIDENCE, emptyFolderText, plural, type Confidence } from './describe';
+import { addProjectRoot, removeProjectRoot, setSourceEnabled, useAddFolder, useSources } from './sourceActions';
 
 const CONFIDENCE_ICON = { verified: CheckmarkBadge01Icon, source: SourceCodeIcon, 'best-effort': TestTubeIcon } as const;
+
+/**
+ * Under a folder list: "Looking in this folder…" while the rescan after an add runs, then, when the
+ * new folder found nothing, which folder to pick instead.
+ */
+export function FolderCheck({ agent, displayName, checking, emptyFolder }: { agent: AgentId; displayName: string; checking: boolean; emptyFolder: string | null }) {
+  return (
+    <p className="source__folder-check" role="status" data-testid="folder-check">
+      {checking ? 'Looking in this folder…' : emptyFolder ? emptyFolderText(agent, displayName) : ''}
+    </p>
+  );
+}
 
 export function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
   const c = CONFIDENCE[confidence];
@@ -23,8 +35,9 @@ export function ConfidenceBadge({ confidence }: { confidence: Confidence }) {
   );
 }
 
-function SourceCard({ s }: { s: SourceStatus }) {
+function SourceCard({ s, rescan }: { s: SourceStatus; rescan: () => Promise<SourceStatus[] | null> }) {
   const settings = useStore((st) => st.settings.sources[s.agent]);
+  const folder = useAddFolder(s.agent, s.runCount, rescan);
   const enabled = settings?.enabled ?? s.enabled;
   const custom = settings?.customRoots ?? s.customRoots.map((r) => r.path);
   const customExists = (p: string) => s.customRoots.find((r) => r.path === p)?.exists;
@@ -67,12 +80,13 @@ function SourceCard({ s }: { s: SourceStatus }) {
             folders={custom}
             listLabel={`Extra folders for ${s.displayName}`}
             exists={customExists}
-            onAdd={() => void addCustomRoot(s.agent)}
-            onRemove={(p) => void removeCustomRoot(s.agent, p)}
+            onAdd={() => void folder.onAdd()}
+            onRemove={folder.onRemove}
             addLabel="Add folder"
             addName={`Add folder for ${s.displayName}`}
             empty="None. Add one if this agent keeps its sessions somewhere unusual."
           />
+          <FolderCheck agent={s.agent} displayName={s.displayName} checking={folder.checking} emptyFolder={folder.emptyFolder} />
         </div>
       </div>
     </li>
@@ -113,7 +127,7 @@ export function SourcesSection() {
       ) : (
         <ul className="sources" aria-label="Agents">
           {list.map((s) => (
-            <SourceCard key={s.agent} s={s} />
+            <SourceCard key={s.agent} s={s} rescan={rescan} />
           ))}
         </ul>
       )}

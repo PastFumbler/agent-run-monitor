@@ -13,6 +13,9 @@ import {
   refreshLabel,
   removeFolder,
   updateResultText,
+  emptyFolderText,
+  FOLDER_HINTS,
+  watchedRunCount,
 } from './describe';
 import { isRunShortcut } from './keys';
 
@@ -117,5 +120,23 @@ describe('form screens keep run shortcuts to themselves', () => {
     for (const key of ['Escape', '?', '/', 'Tab', ' ']) expect(k(key)).toBe(false);
     expect(k('k', { ctrlKey: true })).toBe(false);
     expect(k(',', { metaKey: true })).toBe(false);
+  });
+});
+
+describe('custom folder hints', () => {
+  it('names the right folder for every agent', () => {
+    for (const a of AGENT_IDS) expect(FOLDER_HINTS[a].length, a).toBeGreaterThan(5);
+    expect(emptyFolderText('claude-code', 'Claude Code')).toBe(
+      'No Claude Code sessions found in this folder. Pick the folder that contains the .claude folder or its projects folder.',
+    );
+    expect(emptyFolderText('codex', 'Codex')).toBe('No Codex sessions found in this folder. Pick the folder that contains the .codex folder or its sessions folder.');
+  });
+
+  it('counts the runs of switched-on sources only', () => {
+    const sources = defaultSettings().sources;
+    sources.codex = { ...sources.codex, enabled: false };
+    const list = [src({ agent: 'codex', runCount: 5 }), src({ agent: 'claude-code', runCount: 7 }), src({ agent: 'aider', runCount: 2, enabled: false })];
+    // Settings win over the source's own flag; aider is on in settings.
+    expect(watchedRunCount(list, sources)).toBe(9);
   });
 });

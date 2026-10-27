@@ -5,11 +5,18 @@
 //   node scripts/make-screenshots.mjs              all shots
 //   node scripts/make-screenshots.mjs palette ...  only the named shots
 //   node scripts/make-screenshots.mjs --raw        keep full-colour PNGs (skip the 256-colour pass)
+//   ARM_SHOTS_DIR=<folder> node scripts/make-screenshots.mjs   write there instead of docs/images
 //
 // Uses the installed Google Chrome through Playwright (channel 'chrome'). It reuses a demo server
 // already running on :5317 (npm run dev:web) or starts one with `npx vite --config vite.web.config.ts`
-// and stops it again when done. The clock is pinned (?now=) and the live timer is off (?live=0), so
-// the same code gives the same pictures. The time zone and locale are pinned too.
+// and stops it again when done. The demo's clock is pinned (?now=) and its live timer is off
+// (?live=0); on top of that the page's own clock is faked with Playwright's page.clock: every page
+// loads with Date.now() fixed at exactly NOW, runs at normal speed while the script clicks around,
+// and reads a fixed time (NOW + SHOT_AT_MS) when the screenshot is taken. Relative times, live
+// timers and the ETA therefore come out the same on every run, however fast the machine is. Timers
+// keep running at the shot (setFixedTime, not pauseAt), so no animation is caught half-way; the one
+// thing still tied to real time is which word the rotating "running" synonym shows. The time zone
+// and locale are pinned too.
 //
 // Each PNG is reduced to a 256-colour palette (the UI is flat colour, so this is hard to see) and
 // written with maximum zlib compression, which keeps them around a third of the full-colour size.
@@ -26,20 +33,19 @@ import gifenc from 'gifenc';
 const { quantize, applyPalette } = gifenc;
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-export const OUT_DIR = join(ROOT, 'docs', 'images');
+/** docs/images, or ARM_SHOTS_DIR (to compare two runs without touching the committed images). */
+export const OUT_DIR = process.env.ARM_SHOTS_DIR ? resolve(process.env.ARM_SHOTS_DIR) : join(ROOT, 'docs', 'images');
 export const BASE = process.env.ARM_WEB_URL || 'http://localhost:5317';
 /** 2026-10-27 15:30 UTC. Every relative time in the demo is computed from this. */
 export const NOW = Date.UTC(2026, 9, 27, 15, 30, 0);
 const SETTINGS_KEY = 'arm.fixture.settings.demo';
 const VIEWPORT = { width: 1440, height: 900 };
 
-/** What each adapter really is (each adapter's index.ts under src/core/adapters). The demo backend assigns badges by
- *  position, so the wizard shot is corrected to these before it is taken. */
-const REAL_CONFIDENCE = {
-  'claude-code': 'verified',
-  cursor: 'best-effort',
-};
-const realConfidence = (agent) => REAL_CONFIDENCE[agent] ?? 'source';
+/** How long after it loaded (in fake time) each page's clock is fixed for its screenshot. Must be
+ *  longer than the slowest shot takes to set up; freezeClock() fails loudly if it is not. */
+const SHOT_AT_MS = 30_000;
+/** Fake time at which a page's clock is fixed for a reload (multiviewer), so the reload is pinned too. */
+const RELOAD_AT_MS = 30_000;
 
 // ------------------------------------------------------------------------------------------ shots
 
@@ -93,22 +99,13 @@ const SHOTS = {
   /** First-run wizard, detection step. */
   async 'wizard-detect'(browser) {
     const page = await newPage(browser);
+    await startClock(page);
     await page.goto(`${BASE}/?scenario=firstrun&now=${NOW}&live=0&fresh=1`);
+    await runClock(page);
     await page.getByTestId('wizard').waitFor();
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByRole('heading', { level: 1, name: 'Find your agents' }).waitFor();
     await page.getByTestId('wizard-summary').waitFor();
-    // The demo backend hands out confidence badges by position; show each agent's real one.
-    await page.evaluate((real) => {
-      const rows = [...document.querySelectorAll('.wiz-source[data-agent]')];
-      const sample = {};
-      for (const b of document.querySelectorAll('.wiz-source .confidence[data-confidence]')) sample[b.dataset.confidence] ??= b;
-      for (const row of rows) {
-        const want = real[row.dataset.agent] ?? 'source';
-        const badge = row.querySelector('.confidence[data-confidence]');
-        if (badge && badge.dataset.confidence !== want && sample[want]) badge.replaceWith(sample[want].cloneNode(true));
-      }
-    }, REAL_CONFIDENCE);
     await blurActive(page);
     await settle(page);
     return page;
@@ -154,7 +151,12 @@ async function multiviewer(browser, n) {
     ([key, value]) => localStorage.setItem(key, value),
     [SETTINGS_KEY, JSON.stringify({ theme: 'paper', layouts: [{ name: `Demo ${n}`, runIds: ids }] })],
   );
+  // Fix the clock before the reload so the reloaded page starts from a known fake time as well.
+  const reloadAt = clockBase.get(page) + RELOAD_AT_MS;
+  await assertBefore(page, reloadAt);
+  await startClock(page, reloadAt);
   await page.reload();
+  await runClock(page);
   await waitReady(page);
   await openMultiview(page);
   const open = page.getByRole('button', { name: `Open layout Demo ${n}`, exact: true });
@@ -201,9 +203,49 @@ export async function openDemo(browser, settings = {}, contextOptions = {}, quer
     },
     [SETTINGS_KEY, JSON.stringify(settings)],
   );
+  await startClock(page);
   await page.goto(`${BASE}/?now=${NOW}&${query}`);
+  await runClock(page);
   await waitReady(page);
   return page;
+}
+
+// -------------------------------------------------------------------------------- fake clock
+
+/** The fake time each page (re)loaded at, for freezeClock() targets. */
+export const clockBase = new WeakMap();
+
+/**
+ * Installs Playwright's fake clock with Date.now() fixed at `at`. Call before page.goto (or
+ * reload), and runClock() after it: while the page loads Date.now() is exactly `at`, so the demo's
+ * ?now= pin leaves no offset that depends on how long loading took. (Fixed, not paused: timers and
+ * animation frames keep running. A clock paused through page load leaves Motion's enter
+ * animations stuck at their first frame.)
+ */
+export async function startClock(page, at = NOW) {
+  await page.clock.setFixedTime(at);
+  clockBase.set(page, at);
+}
+
+/** After the page has loaded: the clock runs at normal speed again, from the time it loaded at. */
+export async function runClock(page) {
+  await page.clock.setSystemTime(clockBase.get(page));
+}
+
+/**
+ * From now on Date.now() reads exactly `at`; timers and animation frames keep running. Waits
+ * `settleMs` so every once-a-second timer redraws with the fixed time and number animations (the
+ * ETA counter) finish.
+ */
+export async function freezeClock(page, at, settleMs = 1500) {
+  await assertBefore(page, at);
+  await page.clock.setFixedTime(at);
+  if (settleMs) await page.waitForTimeout(settleMs);
+}
+
+async function assertBefore(page, at) {
+  const fake = await page.evaluate(() => Date.now());
+  if (fake > at) throw new Error(`the fake clock is already ${fake - at} ms past ${at - NOW} ms: setting up took too long`);
 }
 
 export async function waitReady(page) {
@@ -418,6 +460,7 @@ async function main() {
       let page;
       try {
         page = await SHOTS[name](browser);
+        await freezeClock(page, (clockBase.get(page) ?? NOW) + SHOT_AT_MS);
         const png = await page.screenshot({ animations: 'disabled', caret: 'hide' });
         const out = raw ? png : toPalettePng(png);
         const file = join(OUT_DIR, `${name}.png`);

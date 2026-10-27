@@ -5,7 +5,7 @@ import { RUN_STATUSES, STATUS_LABELS, type RunStatus } from '@shared/schema';
 import { MotionPolicyContext } from '../../motion/context';
 import { computeMotionPolicy } from '../../motion/policy';
 import { FakeProgress, FAKE_PROGRESS_CAPTION, fakeProgressAllowed } from './FakeProgress';
-import { showsSynonyms, StatusLabel } from './StatusLabel';
+import { plainStatus, PROBABLY_WAITING, showsSynonyms, StatusLabel } from './StatusLabel';
 import { SYNONYMS } from './synonyms';
 
 afterEach(() => {
@@ -103,5 +103,25 @@ describe('totally fake progress bar', () => {
   it('quotes an absurdly precise ETA', () => {
     render(<FakeProgress status="running" enabled />);
     expect(screen.getByTestId('fake-progress').textContent).toMatch(/ETA .*\d/);
+  });
+});
+
+describe('inferred waits', () => {
+  it('a wait the files cannot record reads "Probably waiting for you", visibly and in the live region', () => {
+    render(<StatusLabel runId="x:5" status="waiting" detail="exec_command may need your approval, or it is still running" inferred synonyms />);
+    expect(screen.getByTestId('status-word').textContent).toBe('Probably waiting for you');
+    expect(screen.getByTestId('run-status-live').textContent).toBe('Status: Probably waiting for you');
+    expect(screen.getByRole('img', { name: 'Probably waiting for you' })).toBeTruthy();
+    expect(plainStatus('waiting', undefined, true)).toBe(PROBABLY_WAITING);
+  });
+
+  it('a recorded wait, or an inferred flag on another status, keeps the plain words', () => {
+    render(<StatusLabel runId="x:6" status="waiting" synonyms />);
+    expect(screen.getByTestId('status-word').textContent).toBe('Waiting for you');
+    expect(screen.getByTestId('run-status-live').textContent).toBe('Status: Waiting for you');
+    cleanup();
+    render(<StatusLabel runId="x:7" status="running" inferred synonyms={false} />);
+    expect(screen.getByTestId('status-word').textContent).toBe('Running');
+    expect(screen.getByTestId('run-status-live').textContent).toBe('Status: Running');
   });
 });

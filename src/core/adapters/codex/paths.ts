@@ -9,7 +9,7 @@
 // [UNVERIFIED] The pre-Rust TypeScript CLI wrote sessions/rollout-YYYY-MM-DD-<uuid>.json.
 
 import { readdir, stat } from 'node:fs/promises';
-import { join, posix, win32 } from 'node:path';
+import { basename, dirname, join, posix, win32 } from 'node:path';
 import type { DiscoverContext, Env, SessionRef } from '../../adapter';
 
 export const ROLLOUT_RE = /^rollout-(\d{4}-\d\d-\d\dT\d\d-\d\d-\d\d)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:_[0-9a-f-]{36})?\.jsonl(\.zst)?$/i;
@@ -38,14 +38,41 @@ async function isDir(p: string): Promise<boolean> {
   }
 }
 
-/** The folders to walk under a root: its sessions/ and archived_sessions/, or the root itself. */
+/**
+ * The Codex home above a custom root that points inside it: `<home>/sessions`,
+ * `<home>/sessions/YYYY[/MM[/DD]]` or `<home>/archived_sessions`. Undefined for any other folder.
+ */
+export function homeAbove(root: string): string | undefined {
+  const start = root.replace(/[\\/]+$/, '');
+  let dir = start;
+  for (let i = 0; i < 3 && /^\d{1,4}$/.test(basename(dir)); i++) dir = dirname(dir);
+  const name = basename(dir);
+  if (name !== 'sessions' && !(name === 'archived_sessions' && dir === start)) return undefined;
+  const home = dirname(dir);
+  return home && home !== dir ? home : undefined;
+}
+
+/**
+ * The folders to walk under a root. A root may be the Codex home (its sessions/ and
+ * archived_sessions/), a folder holding `.codex` (the user picked their home folder), or a folder
+ * inside the home: sessions/, a YYYY, YYYY/MM or YYYY/MM/DD date folder, or archived_sessions/.
+ */
 async function sessionDirs(root: string): Promise<{ dir: string; home?: string }[]> {
   const out: { dir: string; home?: string }[] = [];
-  for (const sub of ['sessions', 'archived_sessions']) {
-    const d = join(root, sub);
-    if (await isDir(d)) out.push({ dir: d, home: root });
+  const asHome = async (home: string) => {
+    for (const sub of ['sessions', 'archived_sessions']) {
+      const d = join(home, sub);
+      if (await isDir(d)) out.push({ dir: d, home });
+    }
+  };
+  await asHome(root);
+  if (!out.length) await asHome(join(root, '.codex'));
+  if (!out.length && (await isDir(root))) {
+    // Inside the home: the walk only descends date-named folders, and the home above (when there
+    // is one) lets a sub-agent's run find its parent thread.
+    const home = homeAbove(root);
+    out.push(home && (await isDir(home)) ? { dir: root, home } : { dir: root });
   }
-  if (!out.length && (await isDir(root))) out.push({ dir: root }); // a custom root pointing at a sessions folder
   return out;
 }
 

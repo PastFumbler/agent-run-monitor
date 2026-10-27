@@ -4,6 +4,7 @@
 //
 //   node scripts/make-gif.mjs
 //   ARM_GIF_FRAMES=<folder> node scripts/make-gif.mjs   also saves every frame as a PNG there (to check)
+//   ARM_SHOTS_DIR=<folder> node scripts/make-gif.mjs    write demo.gif there instead of docs/images
 //
 // What it shows, in about 10 seconds: a live run updating; m to add runs to the multiviewer and
 // → to step to the next run; Ctrl+K, a palette search and Enter to open a result; g then m to open
@@ -14,16 +15,22 @@
 // a device scale factor of 2/3, so Chrome itself renders each frame at 960 x 600 (sharper than
 // shrinking a big screenshot). Frames come straight from the DevTools protocol, at most one per
 // FRAME_MS; each scene is a fixed number of frames and every frame plays for FRAME_MS, so the clip
-// always has the same length (on a busy machine the live demo just moves a little further between
-// frames). Then gifenc (MIT) builds one 255-colour palette for the whole clip, and every frame after
+// always has the same length.
+//
+// Time is faked with Playwright's page.clock. The page loads with Date.now() fixed at exactly NOW
+// (so the demo's ?now= pin is exact), runs normally while the script sets up, and is paused before
+// the first frame. From then on every frame advances the page's clock by exactly FRAME_MS
+// (page.clock.runFor), so the demo's live updates, timers, the ETA and the rotating word move by
+// the same amount per frame on every run, however slow the machine is. CSS and Web Animations still
+// run on real time, which is why frames stay FRAME_MS apart in real time too. Then gifenc (MIT) builds one 255-colour palette for the whole clip, and every frame after
 // the first stores only the pixels that changed (the rest is transparent over the previous frame),
 // which keeps the file small. Reuses the demo server and helpers from make-screenshots.mjs.
 
 import { mkdirSync, writeFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { chromium } from 'playwright';
 import gifenc from 'gifenc';
-import { BASE, NOW, OUT_DIR, blurActive, decodePng, ensureServer, waitReady } from './make-screenshots.mjs';
+import { BASE, NOW, OUT_DIR, ROOT, blurActive, decodePng, ensureServer, runClock, startClock, waitReady } from './make-screenshots.mjs';
 
 const { GIFEncoder, quantize, applyPalette } = gifenc;
 
@@ -32,6 +39,8 @@ const FRAME_MS = 110; // spacing between frames when capturing, and how long eac
 const HOLD_LAST_MS = 1200; // the last frame stays up a little before the clip loops
 const OUT = join(OUT_DIR, 'demo.gif');
 const MAX_BYTES = 2.5 * 1024 * 1024;
+/** Fake time (after NOW) at which recording starts. Longer than the set-up before the first frame. */
+const RECORD_AT_MS = 20_000;
 
 const frames = []; // PNG buffers
 
@@ -55,8 +64,10 @@ async function main() {
         sessionStorage.setItem('arm.gif.seeded', '1');
       }
     });
-    // Live timer on: the demo's running runs keep writing while we record.
+    // Live timer on: the demo's running runs keep writing while we record (on the fake clock).
+    await startClock(page);
     await page.goto(`${BASE}/?now=${NOW}`);
+    await runClock(page);
     await waitReady(page);
     await installCaption(page);
 
@@ -70,6 +81,10 @@ async function main() {
     await blurActive(page);
     await page.waitForTimeout(600);
 
+    // From here the page's clock only moves when a frame is taken.
+    const fakeNow = await page.evaluate(() => Date.now());
+    if (fakeNow > NOW + RECORD_AT_MS) throw new Error(`set-up took longer than RECORD_AT_MS (${fakeNow - NOW} ms)`);
+    await page.clock.pauseAt(NOW + RECORD_AT_MS);
     const rec = recorder(page, await context.newCDPSession(page));
 
     // 1. A live run updating (nudge the demo so new events land on camera).
@@ -104,8 +119,9 @@ async function main() {
     await rec.frames(5);
     await caption(page, 'Enter   open the run');
     await page.keyboard.press('Enter');
-    await page.getByRole('dialog').waitFor({ state: 'detached' });
-    await rec.frames(4);
+    // The palette's closing animation needs the clock to move: take frames until it is gone.
+    await rec.framesUntil(async () => (await page.getByRole('dialog').count()) === 0, 12, 'the palette to close');
+    await rec.frames(3);
     await caption(page, 'm   add it to the multiviewer');
     await page.keyboard.press('m');
     await rec.frames(4);
@@ -114,8 +130,8 @@ async function main() {
     await caption(page, 'g then m   open the multiviewer');
     await page.keyboard.press('g');
     await page.keyboard.press('m');
-    await page.getByTestId('multiview').waitFor();
-    await rec.frames(16, async (i) => {
+    await rec.framesUntil(async () => (await page.getByTestId('multiview').count()) > 0, 12, 'the multiviewer to open');
+    await rec.frames(15, async (i) => {
       if (i % 5 === 2) await page.evaluate(() => window.__armFixture?.tick());
     });
 
@@ -127,7 +143,7 @@ async function main() {
   encode();
 }
 
-/** Takes frames no closer than FRAME_MS apart. */
+/** Takes frames no closer than FRAME_MS apart, moving the page's paused clock FRAME_MS per frame. */
 function recorder(page, cdp) {
   let last = 0;
   let slowest = 0;
@@ -138,6 +154,7 @@ function recorder(page, cdp) {
     if (wait > 0) await page.waitForTimeout(wait);
     if (last) slowest = Math.max(slowest, Date.now() - last);
     last = Date.now();
+    await page.clock.runFor(FRAME_MS);
     const { data } = await cdp.send('Page.captureScreenshot', { format: 'png', optimizeForSpeed: true, clip });
     frames.push(Buffer.from(data, 'base64'));
   };
@@ -147,6 +164,14 @@ function recorder(page, cdp) {
         if (each) await each(i);
         await frame();
       }
+    },
+    /** Frames until `done()` is true (checked after each frame), at least one, at most `max`. */
+    async framesUntil(done, max, what) {
+      for (let i = 0; i < max; i++) {
+        await frame();
+        if (await done()) return;
+      }
+      throw new Error(`no ${what} after ${max} frames`);
     },
     get slowestGapMs() {
       return slowest;
@@ -236,7 +261,7 @@ function encode() {
   const bytes = statSync(OUT).size;
   const seconds = ((frames.length - 1) * FRAME_MS + HOLD_LAST_MS) / 1000;
   const summary = {
-    file: 'docs/images/demo.gif',
+    file: relative(ROOT, OUT).split('\\').join('/'),
     width,
     height,
     frames: frames.length,

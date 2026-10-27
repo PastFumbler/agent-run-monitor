@@ -32,7 +32,7 @@ export function RunHeader({ run, nav }: { run: RunSummary; nav: string[] }) {
     <header className="runview__header">
       <div className="runview__titlebar">
         <div className="runview__titles">
-          <StatusLabel runId={run.id} status={run.status} detail={run.statusDetail} synonyms={settings.synonyms} />
+          <StatusLabel runId={run.id} status={run.status} detail={run.statusDetail} inferred={run.statusInferred} synonyms={settings.synonyms} />
           <h1 className="runview__title" data-untitled={run.title ? undefined : ''} data-testid="run-title">
             {run.title || 'Untitled run'}
           </h1>

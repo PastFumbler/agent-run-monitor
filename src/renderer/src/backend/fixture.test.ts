@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
+import { AGENT_CONFIDENCE } from '@shared/agents';
 import { AGENT_IDS, RUN_STATUSES } from '@shared/schema';
 import { buildDemo, detailOf } from './demoData';
 import { FixtureBackend } from './fixture';
@@ -63,6 +64,11 @@ describe('FixtureBackend', () => {
     expect((await fx.getSettings()).firstRunComplete).toBe(true);
     expect((await fx.setSettings({ theme: 'moss' })).theme).toBe('moss');
     expect((await fx.getSources()).length).toBe(AGENT_IDS.length);
+    // Sources carry the adapters' real confidence and default folders, not made-up ones.
+    const sources = await fx.getSources();
+    for (const src of sources) expect(src.confidence, src.agent).toBe(AGENT_CONFIDENCE[src.agent]);
+    expect(sources.find((x) => x.agent === 'qwen-code')!.defaultRoots[0].path).toBe('/home/demo/.qwen/projects');
+    expect(sources.find((x) => x.agent === 'opencode')!.defaultRoots[0].path).toBe('/home/demo/.local/share/opencode');
     expect(await fx.pickFolder()).toMatch(/^\/home\/demo\//);
     expect((await fx.getPower()).known).toBe(true);
     expect((await fx.checkForUpdate()).error).toMatch(/no network/);

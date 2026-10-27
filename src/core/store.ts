@@ -81,6 +81,8 @@ export interface StoreDeps {
 export interface StoreEvents {
   runsUpdate: (u: RunsUpdate) => void;
   runDetail: (d: RunDetail) => void;
+  /** Every run detail of one flush in one call (main sends them as one IPC message). */
+  runDetails: (ds: RunDetail[]) => void;
   runFinished: (n: RunFinishedNotice) => void;
 }
 
@@ -243,6 +245,7 @@ export class RunStore {
   private readonly pendingDetails = new Set<string>();
   private pendingFull = false;
   private flushTimer: unknown = null;
+  private flushDueAt = 0;
   private lastFlushAt = Number.NEGATIVE_INFINITY;
   private requestedInterval = MIN_FLUSH_MS;
   private hidden = false;
@@ -250,6 +253,10 @@ export class RunStore {
   // detail subscriptions
   private watched = new Set<string>();
   private readonly detailLimits = new Map<string, number>();
+  // watch priority (multiviewer in low GPU mode): watched runs outside `focused` are slow
+  private focused = new Set<string>();
+  private slowMs = 0;
+  private readonly lastDetailAt = new Map<string, number>();
 
   // timers
   private statusTimer: unknown = null;
@@ -260,6 +267,7 @@ export class RunStore {
   private readonly listeners: { [K in keyof StoreEvents]: Set<StoreEvents[K]> } = {
     runsUpdate: new Set(),
     runDetail: new Set(),
+    runDetails: new Set(),
     runFinished: new Set(),
   };
 
@@ -477,6 +485,19 @@ export class RunStore {
   watchRuns(ids: readonly string[]): void {
     this.watched = new Set(ids.filter((s) => typeof s === 'string').slice(0, MAX_WATCHED));
     for (const id of this.pendingDetails) if (!this.watched.has(id)) this.pendingDetails.delete(id);
+    for (const id of this.lastDetailAt.keys()) if (!this.watched.has(id)) this.lastDetailAt.delete(id);
+  }
+
+  /**
+   * Priority among the watched runs: those in `focused` get detail pushes with every flush, the
+   * other watched runs at most every `slowMs` (their changes wait; they are not dropped).
+   * slowMs 0 clears the priority.
+   */
+  setWatchPriority(focused: readonly string[], slowMs: number): void {
+    this.focused = new Set(focused.filter((s) => typeof s === 'string').slice(0, MAX_WATCHED));
+    this.slowMs = Number.isFinite(slowMs) ? Math.min(60_000, Math.max(0, slowMs)) : 0;
+    // A run that just became focused may have a change waiting: send it with the next flush.
+    if (this.pendingDetails.size) this.retimeFlush(true);
   }
 
   /** The renderer's minimum gap between pushes (250 normally, 1000 in low-GPU mode). */
@@ -996,25 +1017,49 @@ export class RunStore {
     if (changed || this.pendingDetails.size) this.scheduleFlush();
   }
 
-  private scheduleFlush(): void {
-    if (this.flushTimer || this.stopped) return;
-    const wait = Math.max(0, this.lastFlushAt + this.flushInterval - this.clock.now());
+  /**
+   * Arms the flush timer for the earliest allowed moment: one flush interval after the last flush,
+   * and not before `notBefore`. A timer already armed for a later moment is pulled in.
+   */
+  private scheduleFlush(notBefore = Number.NEGATIVE_INFINITY): void {
+    if (this.stopped) return;
+    const now = this.clock.now();
+    const due = Math.max(now, this.lastFlushAt + this.flushInterval, notBefore);
+    if (this.flushTimer) {
+      if (this.flushDueAt <= due) return;
+      this.clock.clearTimeout(this.flushTimer);
+    }
+    this.flushDueAt = due;
     this.flushTimer = this.clock.setTimeout(() => {
       this.flushTimer = null;
       this.flush();
-    }, wait);
+    }, due - now);
   }
 
-  private retimeFlush(): void {
-    if (!this.flushTimer) return;
-    this.clock.clearTimeout(this.flushTimer);
+  private retimeFlush(force = false): void {
+    if (!this.flushTimer && !force) return;
+    if (this.flushTimer) this.clock.clearTimeout(this.flushTimer);
     this.flushTimer = null;
     this.scheduleFlush();
   }
 
+  /** When a slow (unfocused) watched run may next get a detail push; 0 when it may now. */
+  private slowUntil(id: string): number {
+    if (this.slowMs <= 0 || this.focused.has(id)) return 0;
+    const last = this.lastDetailAt.get(id);
+    return last === undefined ? 0 : last + this.slowMs;
+  }
+
   private flush(): void {
     if (this.stopped) return;
-    if (this.pendingFull && !this.discovered) return; // start() flushes once discovery is done
+    const nextSlow = this.flushOnce();
+    // Slow runs whose change had to wait: come back for them when they are due.
+    if (nextSlow !== undefined) this.scheduleFlush(nextSlow);
+  }
+
+  /** One flush. Returns when the earliest held-back slow detail is due, if any. */
+  private flushOnce(): number | undefined {
+    if (this.pendingFull && !this.discovered) return undefined; // start() flushes once discovery is done
     let update: RunsUpdate | null = null;
     if (this.pendingFull) {
       this.pendingFull = false;
@@ -1024,9 +1069,19 @@ export class RunStore {
     }
     this.pendingUpserts.clear();
     this.pendingRemovals.clear();
-    const details = [...this.pendingDetails].filter((id) => this.watched.has(id));
-    this.pendingDetails.clear();
-    if (!update && !details.length) return;
+    const now = this.clock.now();
+    const details: string[] = [];
+    let nextSlow: number | undefined;
+    for (const id of [...this.pendingDetails]) {
+      const until = this.watched.has(id) ? this.slowUntil(id) : 0;
+      if (until > now) {
+        nextSlow = Math.min(nextSlow ?? until, until); // stays pending for a later flush
+        continue;
+      }
+      this.pendingDetails.delete(id);
+      if (this.watched.has(id)) details.push(id);
+    }
+    if (!update && !details.length) return nextSlow;
     this.lastFlushAt = this.clock.now();
     if (update) {
       let parsed = 0;
@@ -1034,12 +1089,16 @@ export class RunStore {
       update.progress = { parsed, total: this.entries.size };
       this.emit('runsUpdate', update);
     }
-    const now = this.clock.now();
+    const batch: RunDetail[] = [];
     for (const id of details) {
       const e = this.entries.get(id);
       if (!e?.state) continue;
-      this.emit('runDetail', toDetail(e.ref, e.state, now, this.mask, this.detailLimits.get(id) ?? DEFAULT_DETAIL_LIMIT));
+      this.lastDetailAt.set(id, now);
+      batch.push(toDetail(e.ref, e.state, now, this.mask, this.detailLimits.get(id) ?? DEFAULT_DETAIL_LIMIT));
     }
+    for (const d of batch) this.emit('runDetail', d);
+    if (batch.length) this.emit('runDetails', batch);
+    return nextSlow;
   }
 
   // ---- idle tracking -------------------------------------------------------------------------

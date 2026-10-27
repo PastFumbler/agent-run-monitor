@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { RunSummary } from '@shared/schema';
 import { defaultSettings } from '@shared/settings';
 import { computeMotionPolicy, type MotionInputs } from '../../motion/policy';
-import { pickLatestRun, stepMotion, WIZARD_STEPS } from './wizardModel';
+import { doneCount, pickLatestRun, stepMotion, WIZARD_STEPS } from './wizardModel';
 
 const policy = (o: Partial<MotionInputs>) =>
   computeMotionPolicy({ reduceMotion: 'off', lowGpu: 'off', osReducedMotion: false, power: null, hidden: false, ...o });
@@ -52,5 +52,18 @@ describe('pickLatestRun', () => {
     expect(pickLatestRun(['a'], runs, sources)).toBeNull();
     expect(pickLatestRun([], runs, sources)).toBeNull();
     expect(pickLatestRun(['missing', 'b'], runs, sources)).toBe('b');
+  });
+});
+
+describe('done step count', () => {
+  it('while reading: the detected total (or the backend total), marked as still reading', () => {
+    expect(doneCount({ detected: 554, listed: 146, listLoaded: true, progress: { parsed: 146, total: 554 } })).toEqual({ runs: 554, reading: true, empty: false });
+    expect(doneCount({ detected: null, listed: 0, listLoaded: true, progress: { parsed: 0, total: 30 } })).toEqual({ runs: 30, reading: true, empty: false });
+    expect(doneCount({ detected: 12, listed: 0, listLoaded: false, progress: null })).toEqual({ runs: 12, reading: true, empty: false });
+  });
+
+  it('once read: the list is the truth, and an empty list is the "no runs yet" screen', () => {
+    expect(doneCount({ detected: 554, listed: 553, listLoaded: true, progress: null })).toEqual({ runs: 553, reading: false, empty: false });
+    expect(doneCount({ detected: 0, listed: 0, listLoaded: true, progress: null })).toEqual({ runs: 0, reading: false, empty: true });
   });
 });

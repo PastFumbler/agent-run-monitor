@@ -1,9 +1,10 @@
-SYNTHESIZED FROM SOURCE - NOT REAL SESSIONS.
+SYNTHESIZED FROM SOURCE - NOT REAL SESSIONS. Synthesized from Codex source at commit 6fe77fc.
 Codex is not installed on the machine these were made on. Every record was hand-built from the serde
 definitions in github.com/openai/codex at main 6fe77fc12346591b8037a8704640e40196b19044 (2026-10-27,
 just after release rust-v0.164.0) plus older tags where noted. Content is a toy "todo-cli" Python project; the home
 directory is C:\Users\alex or /home/alex. IDs are fake but correctly shaped (UUIDv7 thread/turn ids, call_*,
-rs_*, msg_*, resp_*). Generator: scratchpad/tools/gen-codex-fixtures.js.
+rs_*, msg_*, resp_*). The one-off script that wrote them
+is not part of the repository: edit these files by hand.
 
 rollout-2026-10-20T16-03-12-019a01f2-...jsonl  current "legacy" history mode (no "ordinal"); 3 turns:
                                                completed (with failing test = tool error, 2 apply_patch edits),

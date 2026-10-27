@@ -62,6 +62,14 @@ nsis:
   shortcutName: Agent Run Monitor
   runAfterFinish: true
   deleteAppDataOnUninstall: false
+  # Installs to %LOCALAPPDATA%\Programs\agent-run-monitor (a one-click per-user install names the
+  # folder after the package name, not productName).
+  # One installer per architecture only: the combined x64 + arm64 setup.exe is not built, so every
+  # published installer is one that scripts/check-blocks.ps1 audits in the release workflow.
+  buildUniversalInstaller: false
+  # build/installer.nsh: the uninstaller also removes %LOCALAPPDATA%\agent-run-monitor-updater
+  # (electron-builder's copy of the installer, unused because the app has no auto-updater).
+  include: build/installer.nsh
   artifactName: agent-run-monitor-${version}-setup-${arch}.${ext}
 
 mac:

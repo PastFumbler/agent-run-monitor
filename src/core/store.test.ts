@@ -466,6 +466,103 @@ describe('RunStore', () => {
     expect(details).toEqual([{ title: 'Watched', events: 2 }]);
   });
 
+  it('sends every run detail of one flush in one runDetails batch', async () => {
+    const pa = writeRun('claude-code', 'a', [{ ts: T(), kind: 'user', text: 'Run A' }]);
+    const pb = writeRun('claude-code', 'b', [{ ts: T(), kind: 'user', text: 'Run B' }]);
+    const { store } = makeStore([fakeAdapter('claude-code')]);
+    const batches: string[][] = [];
+    const singles: string[] = [];
+    store.on('runDetails', (ds) => batches.push(ds.map((d) => d.summary.title).sort()));
+    store.on('runDetail', (d) => singles.push(d.summary.title));
+    await store.start(settings());
+    await settle(store, 1);
+    store.watchRuns(store.listRuns().map((r) => r.id));
+
+    appendFileSync(pa, line({ ts: T(), kind: 'assistant', text: 'Reply' }));
+    appendFileSync(pb, line({ ts: T(), kind: 'assistant', text: 'Reply' }));
+    await store.pollNow();
+    await settle(store, 1000);
+    expect(batches).toEqual([['Run A', 'Run B']]);
+    expect(singles.sort()).toEqual(['Run A', 'Run B']);
+
+    // Nothing changed: no empty batch.
+    await settle(store, 5000);
+    expect(batches).toHaveLength(1);
+  });
+
+  it('pushes unfocused watched runs at most every slowMs and never drops their change', async () => {
+    const pa = writeRun('claude-code', 'a', [{ ts: T(), kind: 'user', text: 'Focused' }]);
+    const pb = writeRun('claude-code', 'b', [{ ts: T(), kind: 'user', text: 'Slow' }]);
+    const { store } = makeStore([fakeAdapter('claude-code')]);
+    const got: { at: number; title: string; events: number }[] = [];
+    store.on('runDetails', (ds) => {
+      for (const d of ds) got.push({ at: clock.now(), title: d.summary.title, events: d.events.length });
+    });
+    await store.start(settings());
+    await settle(store, 1);
+    const ids = Object.fromEntries(store.listRuns().map((r) => [r.title, r.id]));
+    store.watchRuns([ids.Focused, ids.Slow]);
+    store.setWatchPriority([ids.Focused], 3000);
+    const bump = async (n: number) => {
+      appendFileSync(pa, line({ ts: T(), kind: 'assistant', text: `a${n}` }));
+      appendFileSync(pb, line({ ts: T(), kind: 'assistant', text: `b${n}` }));
+      await store.pollNow();
+      await settle(store, 300);
+    };
+
+    // First change: both go out (the slow run has not been pushed yet).
+    await bump(1);
+    const t1 = got.find((g) => g.title === 'Slow')!.at;
+    expect(got.map((g) => g.title).sort()).toEqual(['Focused', 'Slow']);
+    got.length = 0;
+
+    // Changes within slowMs: the focused run every flush, the slow run held back.
+    await bump(2);
+    await bump(3);
+    expect(got.map((g) => g.title)).toEqual(['Focused', 'Focused']);
+    expect(clock.now()).toBeLessThan(t1 + 3000);
+
+    // Once slowMs has passed, the held change goes out on its own, with every event so far.
+    await settle(store, t1 + 3000 - clock.now() + 1);
+    const slow = got.filter((g) => g.title === 'Slow');
+    expect(slow).toHaveLength(1);
+    expect(slow[0].at).toBeGreaterThanOrEqual(t1 + 3000);
+    expect(slow[0].events).toBe(4);
+    got.length = 0;
+
+    // Clearing the priority (slowMs 0) makes every watched run fast again.
+    store.setWatchPriority([], 0);
+    await bump(4);
+    expect(got.map((g) => g.title).sort()).toEqual(['Focused', 'Slow']);
+  });
+
+  it('sends a held-back change at the next flush when its run becomes focused', async () => {
+    writeRun('claude-code', 'a', [{ ts: T(), kind: 'user', text: 'A' }]);
+    const pb = writeRun('claude-code', 'b', [{ ts: T(), kind: 'user', text: 'B' }]);
+    const { store } = makeStore([fakeAdapter('claude-code')]);
+    const got: string[] = [];
+    store.on('runDetails', (ds) => got.push(...ds.map((d) => d.summary.title)));
+    await store.start(settings());
+    await settle(store, 1);
+    const ids = Object.fromEntries(store.listRuns().map((r) => [r.title, r.id]));
+    store.watchRuns([ids.A, ids.B]);
+    store.setWatchPriority([ids.A], 10_000);
+    appendFileSync(pb, line({ ts: T(), kind: 'assistant', text: 'one' }));
+    await store.pollNow();
+    await settle(store, 300);
+    expect(got).toEqual(['B']); // first push of B is not held
+    got.length = 0;
+
+    appendFileSync(pb, line({ ts: T(), kind: 'assistant', text: 'two' }));
+    await store.pollNow();
+    await settle(store, 300);
+    expect(got).toEqual([]); // held: B was pushed less than 10 s ago
+
+    store.setWatchPriority([ids.B], 10_000);
+    await settle(store, 300);
+    expect(got).toEqual(['B']);
+  });
+
   it('re-parses active runs on a live-signal change and ignores irrelevant paths', async () => {
     writeRun('claude-code', 'busy', [{ ts: T(), kind: 'user', text: 'Still working' }]);
     const old = writeRun('claude-code', 'finished', [{ ts: T() - 600_000, kind: 'user', text: 'Old' }, { ts: T() - 600_000, kind: 'end' }]);

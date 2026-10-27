@@ -5,8 +5,9 @@
 //   ARM_REAL_CLAUDE=1 npx playwright test -c playwright.electron.config.ts --project live-local
 //
 // ARM_LIVE_SESSION may name the growing *.jsonl; otherwise the setup picks it by modification time
-// under ~/.claude/projects (preferring one that grows during a short check). ARM_LIVE_REPORT may
-// name a JSON file for the results.
+// under ~/.claude/projects, preferring a file that grows during a short check and, among growing
+// files, a top-level session over a sub-agent or workflow transcript. ARM_LIVE_REPORT may name a
+// JSON file for the results. The report records whether the run was ever seen as idle.
 //
 // PRIVACY: real sessions are private. This test prints and records counts and statuses only:
 // never titles, paths or content. Its assertions compare numbers and booleans only, so a failure
@@ -47,20 +48,42 @@ function jsonlFiles(dir: string, depth = 0, out: { file: string; mtime: number; 
   return out;
 }
 
-/** The newest-modified session file, preferring one that grows during a 5 s check. */
-async function findLiveSession(): Promise<{ file: string; grewInCheck: boolean; candidates: number }> {
+type FileKind = 'main-session' | 'sub-agent' | 'workflow' | 'workflow-agent';
+
+function fileKind(file: string): FileKind {
+  if (/[\\/]subagents[\\/]workflows[\\/]/.test(file)) return file.endsWith('journal.jsonl') ? 'workflow' : 'workflow-agent';
+  if (/[\\/]subagents[\\/]/.test(file)) return 'sub-agent';
+  return 'main-session';
+}
+
+/**
+ * The live session file. Among the most recently modified files, the ones that grow during the
+ * check (5 s, extended up to 30 s while nothing grows: agents write in bursts) win, and a
+ * top-level session beats a sub-agent or workflow transcript (a main session is what a user opens
+ * first, and it carries the sub-runs). With nothing growing: the newest top-level session, else
+ * the newest file.
+ */
+async function findLiveSession(): Promise<{ file: string; grewInCheck: boolean; candidates: number; growing: number }> {
   const root = path.join(os.homedir(), '.claude', 'projects');
   const all = jsonlFiles(root).sort((a, b) => b.mtime - a.mtime);
-  const top = all.slice(0, 8);
+  const top = all.slice(0, 16);
+  const grown = () =>
+    top.filter((c) => {
+      try {
+        return statSync(c.file).size > c.size;
+      } catch {
+        return false; // vanished
+      }
+    });
   await new Promise((r) => setTimeout(r, 5_000));
-  for (const c of top) {
-    try {
-      if (statSync(c.file).size > c.size) return { file: c.file, grewInCheck: true, candidates: all.length };
-    } catch {
-      /* vanished */
-    }
+  let growing = grown();
+  for (let waited = 5_000; !growing.length && waited < 30_000; waited += 2_500) {
+    await new Promise((r) => setTimeout(r, 2_500));
+    growing = grown();
   }
-  return { file: top[0]?.file ?? '', grewInCheck: false, candidates: all.length };
+  const preferMain = (list: typeof all) => list.find((c) => fileKind(c.file) === 'main-session') ?? list[0];
+  const pick = growing.length ? preferMain(growing) : preferMain(top);
+  return { file: pick?.file ?? '', grewInCheck: growing.length > 0, candidates: all.length, growing: growing.length };
 }
 
 const norm = (p: string) => path.resolve(p).toLowerCase();
@@ -73,16 +96,12 @@ test.afterEach(async () => {
 
 test('a growing Claude Code session shows as a live run whose event count rises', async () => {
   test.setTimeout(300_000);
-  const found = process.env.ARM_LIVE_SESSION ? { file: process.env.ARM_LIVE_SESSION, grewInCheck: false, candidates: -1 } : await findLiveSession();
+  const found = process.env.ARM_LIVE_SESSION
+    ? { file: process.env.ARM_LIVE_SESSION, grewInCheck: false, candidates: -1, growing: -1 }
+    : await findLiveSession();
   expect(found.file.length > 0, 'a session file was found').toBe(true);
   const target = norm(found.file);
-  const kind = /[\\/]subagents[\\/]workflows[\\/]/.test(found.file)
-    ? found.file.endsWith('journal.jsonl')
-      ? 'workflow'
-      : 'workflow-agent'
-    : /[\\/]subagents[\\/]/.test(found.file)
-      ? 'sub-agent'
-      : 'main-session';
+  const kind = fileKind(found.file);
 
   // Real home (no ARM_HOME), fresh settings folder, no settings file: the wizard runs.
   launched = await launchApp({ home: null });
@@ -164,6 +183,7 @@ test('a growing Claude Code session shows as a live run whose event count rises'
     sessionFilesUnderProjects: found.candidates,
     liveFileKind: kind,
     liveFileGrewDuringSetupCheck: found.grewInCheck,
+    growingFilesInSetupCheck: found.growing,
     runsListed: last.total,
     claudeCodeRuns: last.claude,
     childRunsWithListedParent: last.children,
@@ -172,7 +192,10 @@ test('a growing Claude Code session shows as a live run whose event count rises'
     samples,
     eventsFirst: samples[0].events,
     eventsLast: samples[samples.length - 1].events,
-    statusesSeen: [...new Set(samples.map((s) => s.status))],
+    statusesSeen: [...new Set([...samples.map((s) => s.status), last.status])],
+    // A live session turns idle between turns: seeing it shows the running -> idle transition.
+    idleSeen: samples.some((s) => s.status === 'idle') || last.status === 'idle',
+    lastStatus: last.status,
     childCheck: roles.parentsWithChildren ? childCheck : 'no child runs present',
   };
   console.log(`live-claude ${JSON.stringify(report)}`);

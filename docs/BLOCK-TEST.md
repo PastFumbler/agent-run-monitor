@@ -203,8 +203,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\check-blocks.ps1 `
 ## 7. Pass criteria
 
 - no 3077 (or 3076 with the audit policy) event for any file in the install folder
-  (`%LOCALAPPDATA%\Programs\Agent Run Monitor` by default), the extracted zip, or `%TEMP%\ns*.tmp`
-  (the installer's and uninstaller's NSIS plug-ins);
+  (`%LOCALAPPDATA%\Programs\agent-run-monitor` by default: the per-user one-click installer names
+  the folder after the package name, not the product name), the extracted zip, or
+  `%TEMP%\ns*.tmp` (the installer's and uninstaller's NSIS plug-ins);
 - no 8028/8029 event caused by the app, installer or uninstaller;
 - no Smart App Control entry in Protection history;
 - no "Smart App Control blocked part of this app" or "blocked an app" dialog at any step.

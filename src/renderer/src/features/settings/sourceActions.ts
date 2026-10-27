@@ -13,19 +13,70 @@ export function setSourceEnabled(agent: AgentId, enabled: boolean) {
   return updateSettings({ sources: patchSource(s.sources, agent, { enabled }) });
 }
 
-/** Opens the folder picker and adds the choice as a custom root for this agent. */
+/**
+ * Opens the folder picker and adds the choice as a custom root for this agent. Returns the folder,
+ * or null when nothing was picked or the folder was already listed.
+ */
 export async function addCustomRoot(agent: AgentId): Promise<string | null> {
   const picked = await getBackend().pickFolder();
   if (!picked) return null;
   const s = useStore.getState().settings;
-  const roots = addFolder(s.sources[agent]?.customRoots ?? [], picked);
-  if (roots !== (s.sources[agent]?.customRoots ?? [])) await updateSettings({ sources: patchSource(s.sources, agent, { customRoots: roots }) });
+  const cur = s.sources[agent]?.customRoots ?? [];
+  const roots = addFolder(cur, picked);
+  if (roots === cur) return null;
+  await updateSettings({ sources: patchSource(s.sources, agent, { customRoots: roots }) });
   return picked;
 }
 
 export function removeCustomRoot(agent: AgentId, path: string) {
   const s = useStore.getState().settings;
   return updateSettings({ sources: patchSource(s.sources, agent, { customRoots: removeFolder(s.sources[agent]?.customRoots ?? [], path) }) });
+}
+
+/**
+ * Adding a custom folder for one agent. Once the folder is saved it rescans; when the agent found no
+ * more runs than before, `emptyFolder` holds the folder so the card can say which folder to pick
+ * instead (otherwise a wrong folder just gives 0 runs and no clue). `rescan` defaults to a fresh scan.
+ */
+export function useAddFolder(agent: AgentId, runCount: number, rescan?: () => Promise<SourceStatus[] | null>) {
+  const [emptyFolder, setEmptyFolder] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const countRef = useRef(runCount);
+  countRef.current = runCount;
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  const onAdd = useCallback(async () => {
+    const before = countRef.current;
+    const picked = await addCustomRoot(agent);
+    if (!picked || !alive.current) return;
+    setEmptyFolder(null);
+    setChecking(true);
+    try {
+      const list = rescan ? await rescan() : await getBackend().getSources(true);
+      const after = list?.find((x) => x.agent === agent)?.runCount;
+      if (alive.current && after != null && after <= before) setEmptyFolder(picked);
+    } catch {
+      /* the sources list shows scan errors */
+    } finally {
+      if (alive.current) setChecking(false);
+    }
+  }, [agent, rescan]);
+
+  const onRemove = useCallback(
+    (path: string) => {
+      setEmptyFolder((cur) => (cur === path ? null : cur));
+      void removeCustomRoot(agent, path);
+    },
+    [agent],
+  );
+
+  return { onAdd, onRemove, emptyFolder, checking };
 }
 
 export async function addProjectRoot(): Promise<string | null> {
@@ -54,7 +105,8 @@ export function useSources(rescanFirst = false) {
   const seq = useRef(0);
   const first = useRef(true);
 
-  const load = useCallback(async (rescan: boolean) => {
+  /** Loads (with `rescan`, re-detects) the sources; resolves to the fresh list, or null on error. */
+  const load = useCallback(async (rescan: boolean): Promise<SourceStatus[] | null> => {
     const mine = ++seq.current;
     if (rescan) setScanning(true);
     try {
@@ -63,8 +115,10 @@ export function useSources(rescanFirst = false) {
         setList(next);
         setError(null);
       }
+      return next;
     } catch (e) {
       if (mine === seq.current) setError(`Couldn't look for agents: ${String((e as Error)?.message ?? e)}`);
+      return null;
     } finally {
       if (rescan) setScanning(false);
     }
@@ -76,5 +130,6 @@ export function useSources(rescanFirst = false) {
     void load(rescan);
   }, [load, rescanFirst, sources, projectRoots]);
 
-  return { list, scanning, error, rescan: () => load(true) };
+  const rescan = useCallback(() => load(true), [load]);
+  return { list, scanning, error, rescan };
 }

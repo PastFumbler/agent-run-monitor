@@ -1,7 +1,8 @@
 # Continuous integration: every push and pull request, on Windows, macOS and Linux.
 # Typecheck, unit tests (including the theme contrast test and the adapter fixture tests),
 # renderer end-to-end tests in Google Chrome, a production build, an unsigned unpacked package,
-# and the secret / private-path scan over the whole history.
+# the real Electron app driven by Playwright (Windows and Linux), and the secret / private-path
+# scan over the whole history.
 name: CI
 
 on:
@@ -89,6 +90,64 @@ jobs:
       # without publishing, to prove packaging works on every platform.
       - name: Package (unpacked, unsigned)
         run: npm run dist:dir
+
+  # End-to-end tests against the REAL Electron app (out/), on Windows and on Linux under a virtual
+  # X server. Each test launches the app with a fresh settings folder and a fake home of synthetic
+  # sessions (e2e-electron/helpers.ts). e2e-electron/live-claude.spec.ts reads a real home and
+  # skips itself whenever CI is set.
+  electron-e2e:
+    name: electron e2e (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    env:
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the Electron binary
+        run: npx install-electron
+
+      # Ubuntu 24.04 blocks the unprivileged user namespaces Chromium's sandbox uses, so the app
+      # (sandbox: true) needs the setuid sandbox helper, as the Electron docs describe.
+      - name: Set up the Chromium sandbox helper (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      - name: Production build
+        run: npm run build
+
+      - name: End-to-end tests (Playwright, Electron)
+        if: runner.os != 'Linux'
+        run: npx playwright test -c playwright.electron.config.ts --project electron
+
+      - name: End-to-end tests (Playwright, Electron, under xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npx playwright test -c playwright.electron.config.ts --project electron
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-electron-report-${{ matrix.os }}
+          path: |
+            playwright-report/
+            test-results/electron/
+          retention-days: 7
+          if-no-files-found: ignore
 
   secrets:
     name: secret scan

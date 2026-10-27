@@ -20,20 +20,13 @@ import { useMotionPolicy } from '../../motion/context';
 import { openRunWithDefaultView, updateSettings } from '../../store/actions';
 import { useStore } from '../../store/store';
 import { FolderList, PathMark, Switch, ThemePicker } from '../settings/controls';
-import { detectionSummary, isFound, plural } from '../settings/describe';
+import { detectionSummary, isFound, plural, watchedRunCount } from '../settings/describe';
 import { stopAppShortcuts } from '../settings/keys';
 import { FakeProgressSwitch, ReduceMotionChoice, SynonymsSwitch } from '../settings/SettingsScreen';
-import { ConfidenceBadge } from '../settings/SourcesSection';
-import {
-  addCustomRoot,
-  addProjectRoot,
-  removeCustomRoot,
-  removeProjectRoot,
-  setSourceEnabled,
-  useSources,
-} from '../settings/sourceActions';
+import { ConfidenceBadge, FolderCheck } from '../settings/SourcesSection';
+import { addProjectRoot, removeProjectRoot, setSourceEnabled, useAddFolder, useSources } from '../settings/sourceActions';
 import { MOD } from '../shortcuts/shortcuts';
-import { pickLatestRun, stepMotion, WIZARD_STEPS } from './wizardModel';
+import { doneCount, pickLatestRun, stepMotion, WIZARD_STEPS } from './wizardModel';
 import './wizard.css';
 
 type HeadingRef = Ref<HTMLHeadingElement>;
@@ -78,8 +71,9 @@ function WelcomeStep({ headingRef }: { headingRef: HeadingRef }) {
   );
 }
 
-export function AgentRow({ s }: { s: SourceStatus }) {
+export function AgentRow({ s, rescan }: { s: SourceStatus; rescan?: () => Promise<SourceStatus[] | null> }) {
   const sources = useStore((st) => st.settings.sources);
+  const folder = useAddFolder(s.agent, s.runCount, rescan);
   const enabled = sources[s.agent]?.enabled ?? s.enabled;
   const custom = sources[s.agent]?.customRoots ?? [];
   const found = isFound(s);
@@ -118,17 +112,18 @@ export function AgentRow({ s }: { s: SourceStatus }) {
       <FolderList
         folders={custom}
         listLabel={`Extra folders for ${s.displayName}`}
-        onAdd={() => void addCustomRoot(s.agent)}
-        onRemove={(p) => void removeCustomRoot(s.agent, p)}
+        onAdd={() => void folder.onAdd()}
+        onRemove={folder.onRemove}
         addLabel="Add a folder"
         addName={`Add a folder for ${s.displayName}`}
       />
+      <FolderCheck agent={s.agent} displayName={s.displayName} checking={folder.checking} emptyFolder={folder.emptyFolder} />
     </li>
   );
 }
 
 function DetectStep({ headingRef }: { headingRef: HeadingRef }) {
-  const { list, scanning, error } = useSources(true);
+  const { list, scanning, error, rescan } = useSources(true);
   const projectRoots = useStore((s) => s.settings.projectRoots);
   const summary = list ? detectionSummary(list) : null;
   return (
@@ -147,7 +142,7 @@ function DetectStep({ headingRef }: { headingRef: HeadingRef }) {
       {list ? (
         <ul className="wiz-sources" aria-label="Agents">
           {list.map((s) => (
-            <AgentRow key={s.agent} s={s} />
+            <AgentRow key={s.agent} s={s} rescan={rescan} />
           ))}
         </ul>
       ) : null}
@@ -193,7 +188,14 @@ function LookStep({ headingRef }: { headingRef: HeadingRef }) {
 function DoneStep({ headingRef }: { headingRef: HeadingRef }) {
   const total = useStore((s) => s.order.length);
   const loaded = useStore((s) => s.runsLoaded);
-  if (loaded && total === 0) {
+  const progress = useStore((s) => s.loadProgress);
+  const settingsSources = useStore((s) => s.settings.sources);
+  // The cached detection from step 2 (a fresh one when setup was skipped): the list may still be
+  // reading, so "Watching N runs" uses what was detected, not what has been read so far.
+  const { list } = useSources(false);
+  const detected = list ? watchedRunCount(list, settingsSources) : null;
+  const count = doneCount({ detected, listed: total, listLoaded: loaded, progress });
+  if (count.empty) {
     return (
       <div className="wizard__done" data-testid="wizard-done-empty">
         <h1 ref={headingRef} tabIndex={-1}>
@@ -218,7 +220,11 @@ function DoneStep({ headingRef }: { headingRef: HeadingRef }) {
         You're all set
       </h1>
       <p className="wizard__lead">
-        Watching {plural(total, 'run')}. New sessions appear on their own, within seconds of starting.
+        <span data-testid="wizard-done-count">
+          Watching {plural(count.runs, 'run')}
+          {count.reading ? ' (still reading…)' : ''}.
+        </span>{' '}
+        New sessions appear on their own, within seconds of starting.
       </p>
       <ul className="wizard__tips">
         <li>

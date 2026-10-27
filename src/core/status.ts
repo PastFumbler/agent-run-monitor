@@ -5,6 +5,9 @@
 // - a shell call open for 12 minutes is stuck (agents' shell tools time out at 10),
 // - any tool call open for 65 minutes is stuck,
 // - a finished turn reads "idle" for 3 minutes (the user may reply), then "done".
+// Formats that cannot record approval prompts (ParsedRun.turnInferred) get one more rule: an open
+// tool call with a file quiet for a minute is probably an approval prompt, so the run reads
+// "waiting", marked inferred so the UI can say "Probably waiting for you".
 
 import type { RunStatus } from '@shared/schema';
 import type { ParsedRun } from './adapter';
@@ -18,10 +21,21 @@ export const IDLE_FOR = 3 * 60_000;
 export const ABANDONED_AFTER = 24 * 60 * 60_000;
 /** With no turn information at all, a file written this recently counts as running. */
 export const UNKNOWN_LIVE_FOR = 2 * 60_000;
+/** With turnInferred, an open tool call quiet this long is probably waiting for the user's approval. */
+export const INFERRED_WAIT_AFTER = 60_000;
 
 export interface Judgement {
   status: RunStatus;
   detail?: string;
+  /**
+   * Set when the status is a guess rather than something the file records: a 'waiting', or a
+   * 'running' with an open tool, from an adapter that cannot see approval prompts.
+   */
+  inferred?: true;
+}
+
+function withInferred(j: Judgement, run: ParsedRun): Judgement {
+  return run.turnInferred ? { ...j, inferred: true } : j;
 }
 
 function minutes(ms: number): string {
@@ -45,7 +59,7 @@ export function judgeStatus(run: ParsedRun, fileMtime: number, now: number): Jud
     case 'waiting_input':
       // A session closed while it waited is not still waiting a day later.
       if (silent >= ABANDONED_AFTER) return { status: 'done', detail: 'Ended while waiting for input' };
-      return { status: 'waiting', detail: run.turnDetail || 'Waiting for your input' };
+      return withInferred({ status: 'waiting', detail: run.turnDetail || 'Waiting for your input' }, run);
     case 'aborted':
       return silent < IDLE_FOR
         ? { status: 'idle', detail: run.turnDetail || 'Interrupted' }
@@ -67,7 +81,9 @@ export function judgeStatus(run: ParsedRun, fileMtime: number, now: number): Jud
       return { status: 'stuck', detail: `A shell command has been running for ${minutes(open)} with no output` };
     if (open >= TOOL_STUCK_AFTER && silent >= TOOL_STUCK_AFTER)
       return { status: 'stuck', detail: `${run.openTool.name} has been open for ${minutes(open)}` };
-    return { status: 'running', detail: `Running ${run.openTool.name}` };
+    if (run.turnInferred && silent >= INFERRED_WAIT_AFTER)
+      return { status: 'waiting', detail: `${run.openTool.name} may need your approval, or it is still running`, inferred: true };
+    return withInferred({ status: 'running', detail: `Running ${run.openTool.name}` }, run);
   }
 
   if (run.turn === 'unknown') {

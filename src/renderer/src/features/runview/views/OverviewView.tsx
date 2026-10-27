@@ -56,7 +56,7 @@ export function OverviewView({ detail, compact }: RunViewProps) {
         </section>
       ) : (
         <section className="card overview__status" aria-labelledby={ids.status}>
-          <StatusMark status={s.status} size={22} decorative />
+          <StatusMark status={s.status} size={22} decorative still />
           <div>
             <h2 id={ids.status}>{STATUS_LABELS[s.status]}</h2>
             <p className="muted" style={{ margin: '2px 0 0' }}>

@@ -7,7 +7,7 @@ import type { Env, ParseContext, ParseState, SessionRef } from '../../adapter';
 import { safeParse } from '../../build';
 import { judgeStatus } from '../../status';
 import { adapters, codexAdapter } from './index';
-import { findThreadFile } from './paths';
+import { findThreadFile, homeAbove } from './paths';
 
 const FIX = resolve(__dirname, '../../../../test/fixtures/codex');
 const LEGACY = 'rollout-2026-10-20T16-03-12-019a01f2-6c3d-7e41-b5a2-3c4d5e6f7a81.jsonl';
@@ -101,6 +101,34 @@ describe('codex adapter: roots and discovery', () => {
     const home = fakeHome();
     const refs = await codexAdapter.discover([join(home, 'sessions')], { env, since: 0, projectRoots: [] });
     expect(refs).toHaveLength(3);
+    // The home above is still known, so sub-agent runs can find their parent thread.
+    expect(refs.every((r) => r.hint?.home === home)).toBe(true);
+  });
+
+  it('accepts a date folder inside sessions, archived_sessions, or the folder that holds .codex', async () => {
+    const home = fakeHome();
+    const disc = (root: string) => codexAdapter.discover([root], { env, since: 0, projectRoots: [] });
+    const day = await disc(join(home, 'sessions', '2026', '10', '22'));
+    expect(day.map((r) => r.path.split(/[\\/]/).pop())).toEqual([PAGINATED]);
+    expect(day[0].hint?.home).toBe(home);
+    const year = await disc(join(home, 'sessions', '2026'));
+    expect(year.map((r) => r.path.split(/[\\/]/).pop()).sort()).toEqual([LEGACY, PAGINATED].sort());
+    const archived = await disc(join(home, 'archived_sessions'));
+    expect(archived.map((r) => r.path.split(/[\\/]/).pop())).toEqual([EXTENDED]);
+    expect(archived[0].hint).toMatchObject({ home, archived: '1' });
+    const userHome = await disc(join(home, '..'));
+    expect(userHome).toHaveLength(4);
+    // A folder with no rollouts in it finds nothing (the UI then explains which folder to pick).
+    expect(await disc(join(home, '..', '..'))).toEqual([]);
+  });
+
+  it('homeAbove names the Codex home only for folders inside it', () => {
+    const h = join(tmpRoot, 'x', '.codex');
+    expect(homeAbove(join(h, 'sessions'))).toBe(h);
+    expect(homeAbove(join(h, 'sessions', '2026', '10', '22'))).toBe(h);
+    expect(homeAbove(join(h, 'archived_sessions'))).toBe(h);
+    expect(homeAbove(join(h, 'archived_sessions', '2026'))).toBeUndefined();
+    expect(homeAbove(join(tmpRoot, 'x', 'notes'))).toBeUndefined();
   });
 
   it('finds a parent thread file from its UUIDv7 id', async () => {
@@ -483,6 +511,30 @@ describe('codex adapter: status', () => {
     const r = (await parse(p)).run;
     expect(r.turn).toBe('in_progress');
     expect(r.openTool).toEqual({ name: 'exec_command', kind: 'run', since: Date.parse('2026-10-20T14:03:16.020Z') });
-    expect(judgeStatus(r, r.lastEventAt!, r.lastEventAt! + 30_000)).toEqual({ status: 'running', detail: 'Running exec_command' });
+    // Codex writes no approval prompt to disk: the open call is marked as a guess...
+    expect(r.turnInferred).toBe(true);
+    expect(judgeStatus(r, r.lastEventAt!, r.lastEventAt! + 30_000)).toEqual({ status: 'running', detail: 'Running exec_command', inferred: true });
+    // ...and once the file has been quiet a while it reads as probably waiting for approval.
+    expect(judgeStatus(r, r.lastEventAt!, r.lastEventAt! + 2 * 60_000)).toEqual({
+      status: 'waiting',
+      detail: 'exec_command may need your approval, or it is still running',
+      inferred: true,
+    });
+  });
+
+  it('a recorded approval request is not marked as inferred', async () => {
+    const p = tmp('rollout-2026-10-25T10-00-00-019a1b00-0000-7000-8000-000000000009.jsonl');
+    writeLines(p, [
+      { timestamp: '2026-10-25T08:00:00Z', type: 'session_meta', payload: { id: 'x', cwd: '/home/alex/code/app' } },
+      { timestamp: '2026-10-25T08:00:01Z', type: 'event_msg', payload: { type: 'task_started', turn_id: 't1' } },
+      { timestamp: '2026-10-25T08:00:02Z', type: 'response_item', payload: { type: 'function_call', name: 'shell', arguments: '{"command":["ls"]}', call_id: 'c1' } },
+      { timestamp: '2026-10-25T08:00:03Z', type: 'event_msg', payload: { type: 'exec_approval_request', call_id: 'c1', command: ['ls'] } },
+    ]);
+    const r = (await parse(p)).run;
+    expect(r.turn).toBe('waiting_input');
+    expect(r.turnInferred).toBeUndefined();
+    const j = judgeStatus(r, r.lastEventAt!, r.lastEventAt! + 2 * 60_000);
+    expect(j.status).toBe('waiting');
+    expect(j.inferred).toBeUndefined();
   });
 });

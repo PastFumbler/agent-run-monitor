@@ -99,6 +99,13 @@ jobs:
       - name: Download the Electron binary
         run: npx install-electron
 
+      # A tag must never publish code that fails the checks CI runs on a branch.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
       - name: Build the app
         run: npm run build
 
@@ -258,10 +265,21 @@ jobs:
           }
 
           $exe = Get-ChildItem "$dir\win-unpacked" -Filter *.exe | Where-Object { $_.Name -notlike 'Uninstall*' -and $_.Name -ne 'elevate.exe' } | Select-Object -First 1
-          node scripts/runtime-modules.mjs --exe $exe.FullName --out $out
-          if ($LASTEXITCODE -ne 0) { throw "runtime-modules.mjs could not run the app (exit $LASTEXITCODE)" }
-
+          if (-not $exe) { throw "no app exe found in $dir\win-unpacked" }
+          # --strict: exit 1 when any step (wizard, runs, views, multiviewer, settings) failed, so a
+          # runtime pass that never got past the first-run wizard cannot pass as a clean report.
+          # Exit 2 means the app could not be run at all. A failed step still lets the static audit
+          # below run, so the report is complete, and fails the job at the end.
           $failed = $false
+          node scripts/runtime-modules.mjs --exe $exe.FullName --out $out --strict
+          $runtimeExit = $LASTEXITCODE
+          if ($runtimeExit -eq 1) {
+            $failed = $true
+            Write-Host '::error::Smart App Control runtime pass: a step failed (see runtime-modules.md in the report)'
+          } elseif ($runtimeExit -ne 0) {
+            throw "runtime-modules.mjs could not run the app (exit $runtimeExit)"
+          }
+
           foreach ($arch in @('x64', 'arm64')) {
             $unpacked = if ($arch -eq 'x64') { "$dir\win-unpacked" } else { "$dir\win-$arch-unpacked" }
             if (-not (Test-Path $unpacked)) { continue }

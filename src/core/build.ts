@@ -70,6 +70,7 @@ export function toSummary(ref: SessionRef, st: ParseState, now: number, mask: bo
     updatedAt,
     status: j.status,
     statusDetail: j.detail ? m(j.detail) : undefined,
+    statusInferred: j.inferred,
     counts: {
       events: r.tally.events,
       messages: r.tally.messages,

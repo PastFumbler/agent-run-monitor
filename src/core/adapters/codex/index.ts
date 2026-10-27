@@ -178,6 +178,12 @@ export const codexAdapter: SourceAdapter = {
   async parse(ref, prev) {
     const st = /\.(zst|json)$/i.test(ref.path) ? await parseWhole(ref, prev) : await parseJsonl(ref, prev);
     if (!st.run.projectPath && st.run.projectName === 'Unknown project' && ref.hint?.project) st.run.projectName = baseName(ref.hint.project);
+    // Current Codex versions write no approval request to disk [SRC records.ts finish], so an open
+    // call may be running or may be waiting for approval: core/status.ts says "probably waiting"
+    // once the file has been quiet a while. Sub-agent calls are left out (they never ask).
+    const open = st.run.openTool;
+    if (st.run.turn === 'in_progress' && open && open.kind !== 'agent') st.run.turnInferred = true;
+    else delete st.run.turnInferred;
     return st;
   },
 };

@@ -66,4 +66,17 @@ describe('StatusMark', () => {
     expect(spins(low)).toBe(false);
     expect(spins(hidden)).toBe(false);
   });
+
+  it('still: never spins, but keeps the running arc shape', () => {
+    const full = computeMotionPolicy({ reduceMotion: 'off', lowGpu: 'off', osReducedMotion: false, power: null, hidden: false });
+    const { container } = render(
+      <MotionPolicyContext.Provider value={full}>
+        <StatusMark status="running" still />
+      </MotionPolicyContext.Provider>,
+    );
+    const root = container.querySelector('.status-mark')!;
+    expect(root.hasAttribute('data-spin')).toBe(false);
+    expect(root.getAttribute('data-shape')).toBe('arc');
+    expect(container.querySelector('.status-mark__ring')!.getAttribute('stroke-dasharray')).toBeTruthy();
+  });
 });

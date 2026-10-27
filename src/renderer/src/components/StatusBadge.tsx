@@ -5,7 +5,7 @@ import StatusMark from '../vendor/react-bits/StatusMark/StatusMark';
 export function StatusBadge({ status, size = 14, short = false }: { status: RunStatus; size?: number; short?: boolean }) {
   return (
     <span className="status-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-      <StatusMark status={status} size={size} decorative />
+      <StatusMark status={status} size={size} decorative still />
       <span className="status-text" data-status={status}>
         {short ? SHORT_LABELS[status] : STATUS_LABELS[status]}
       </span>

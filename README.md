@@ -68,7 +68,7 @@ Download the latest version from the [releases page](https://github.com/OWNER/ag
 
 Two choices:
 
-- **Installer** (`agent-run-monitor-<version>-setup-x64.exe`, or `-setup-arm64.exe` for Arm PCs). Double-click it. It asks no questions: it installs for your user account only, never asks for administrator rights, and is done in a few seconds. It installs into `%LOCALAPPDATA%\Programs\agent-run-monitor`, adds an **Agent Run Monitor** shortcut to the Start menu and the desktop, and starts the app when done. The release page also lists `agent-run-monitor-<version>-setup.exe` with no architecture in the name: it contains both versions and picks the right one, but it is twice the size. To remove the app, see [Uninstall](#uninstall).
+- **Installer** (`agent-run-monitor-<version>-setup-x64.exe` for most PCs, or `-setup-arm64.exe` for Arm PCs). Double-click it. It asks no questions: it installs for your user account only, never asks for administrator rights, and is done in a few seconds. It installs into `%LOCALAPPDATA%\Programs\agent-run-monitor`, adds an **Agent Run Monitor** shortcut to the Start menu and the desktop, and starts the app when done. To remove the app, see [Uninstall](#uninstall).
 - **Portable zip** (`agent-run-monitor-<version>-win-x64.zip`, or `-win-arm64.zip`). Right-click > Extract All, then run `Agent Run Monitor.exe` from the extracted folder. Nothing is installed, but your settings are still saved in `%APPDATA%\Agent Run Monitor` (see [Uninstall](#uninstall)).
 
 **Windows may warn you.** Builds are not code-signed until the project has a signing certificate set up (see [docs/BLOCK-TEST.md](docs/BLOCK-TEST.md)).
@@ -177,23 +177,24 @@ These are the places the app looks by default. `~` means your home folder. On Wi
 
 | Agent | Windows | macOS | Linux | Moved by |
 | --- | --- | --- | --- | --- |
-| Claude Code | `%USERPROFILE%\.claude` | `~/.claude` (also `~/.config/claude`) | `~/.claude` (also `~/.config/claude`) | `CLAUDE_CONFIG_DIR` |
+| Claude Code | `%USERPROFILE%\.claude` | `~/.claude` (also `~/.config/claude`) | `~/.claude` (also `~/.config/claude`) | `CLAUDE_CONFIG_DIR`; on macOS and Linux `XDG_CONFIG_HOME` (for `~/.config/claude`) |
 | Codex | `%USERPROFILE%\.codex` | `~/.codex` | `~/.codex` | `CODEX_HOME` |
 | Gemini CLI | `%USERPROFILE%\.gemini` | `~/.gemini` (also `~/.cache/.gemini` for sandboxed runs) | `~/.gemini` | `GEMINI_CLI_HOME` |
 | Qwen Code | `%USERPROFILE%\.qwen` | `~/.qwen` | `~/.qwen` | `QWEN_HOME`, `QWEN_RUNTIME_DIR` |
-| Copilot in VS Code | `%APPDATA%\Code\User` | `~/Library/Application Support/Code/User` | `~/.config/Code/User` | `VSCODE_PORTABLE`; on Linux `XDG_CONFIG_HOME` |
-| Copilot CLI | `%USERPROFILE%\.copilot\session-state` | `~/.copilot/session-state` | `~/.copilot/session-state` | `COPILOT_HOME` |
+| Copilot in VS Code | `%APPDATA%\Code\User` | `~/Library/Application Support/Code/User` | `~/.config/Code/User` | `VSCODE_APPDATA`, `VSCODE_PORTABLE`; on Linux `XDG_CONFIG_HOME` |
+| Copilot CLI | `%USERPROFILE%\.copilot\session-state` | `~/.copilot/session-state` | `~/.copilot/session-state` | `COPILOT_HOME`; `XDG_CONFIG_HOME` (unverified: the app also looks under it) |
 | Aider | `.aider.chat.history.md` in each project, and `%USERPROFILE%` | the same, and `~` | the same, and `~` | `AIDER_CHAT_HISTORY_FILE` |
 | Cursor | `%APPDATA%\Cursor\User` and `%USERPROFILE%\.cursor` | `~/Library/Application Support/Cursor/User` and `~/.cursor` | `~/.config/Cursor/User`, `~/.cursor` and `~/.config/cursor` | on Linux `XDG_CONFIG_HOME` |
-| Cline | `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev` and `%USERPROFILE%\.cline\data` | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev` and `~/.cline/data` | `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev` and `~/.cline/data` | `CLINE_DIR`, `CLINE_DATA_DIR`, `CLINE_SESSION_DATA_DIR` |
-| Roo Code | `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline` | `~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline` | `~/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline` | Roo Code's custom storage path (add it by hand) |
+| Cline | `%APPDATA%\Code\User\globalStorage\saoudrizwan.claude-dev` and `%USERPROFILE%\.cline\data` | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev` and `~/.cline/data` | `~/.config/Code/User/globalStorage/saoudrizwan.claude-dev` and `~/.cline/data` | `CLINE_DIR`, `CLINE_DATA_DIR`, `CLINE_SESSION_DATA_DIR`, `VSCODE_PORTABLE`; on Linux `XDG_CONFIG_HOME` |
+| Roo Code | `%APPDATA%\Code\User\globalStorage\rooveterinaryinc.roo-cline` | `~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline` | `~/.config/Code/User/globalStorage/rooveterinaryinc.roo-cline` | `VSCODE_PORTABLE`; on Linux `XDG_CONFIG_HOME`; Roo Code's custom storage path (add it by hand) |
 | Continue | `%USERPROFILE%\.continue\sessions` | `~/.continue/sessions` | `~/.continue/sessions` | `CONTINUE_GLOBAL_DIR` |
 | OpenCode | `%USERPROFILE%\.local\share\opencode` | `~/.local/share/opencode` | `~/.local/share/opencode` | `XDG_DATA_HOME`, `OPENCODE_DB` |
 
 Notes:
 
 - **VS Code variants.** For Copilot in VS Code, the app also looks in `Code - Insiders` and `VSCodium` in place of `Code`. For Cline and Roo Code it also looks in `Code - Insiders`, `VSCodium`, `Cursor` and `Windsurf`. On Linux it also checks the Flatpak VSCodium folder and the remote-server folders (`~/.vscode-server/data/User` and similar) for Cline and Roo Code, so it works when the app runs on the remote machine.
-- **Linux `XDG_CONFIG_HOME`.** If it is set, it replaces `~/.config` in the paths above.
+- **`XDG_CONFIG_HOME`.** If it is set, it replaces `~/.config` in the Linux paths above, and in Claude Code's `~/.config/claude` on macOS too.
+- **`VSCODE_APPDATA`.** If it is set, Copilot in VS Code is looked for under it in place of the usual application data folder (`%APPDATA%`, `~/Library/Application Support` or `~/.config`).
 - **The exact list for your computer** is in Settings > Sources, under "Where it looks", with a mark showing whether each folder exists.
 
 ## Using the app
@@ -373,10 +374,7 @@ Removing the app never touches your agents' session files. If you turned on Sett
 2. Open **Settings > Apps > Installed apps**, find **Agent Run Monitor** (listed with its version, for example "Agent Run Monitor 0.1.0"), click **⋯** > **Uninstall**, and confirm.
 3. The uninstaller asks "Are you sure you want to uninstall Agent Run Monitor?". Click **OK**. It finishes in a few seconds, without asking for administrator rights.
 
-This removes the program folder (`%LOCALAPPDATA%\Programs\agent-run-monitor`), the Start menu and desktop shortcuts, and the app's entry in Installed apps. Two folders stay behind on purpose, so a reinstall keeps your settings. To remove everything, delete them too (paste each path into the File Explorer address bar):
-
-- `%APPDATA%\Agent Run Monitor`: your settings, saved layouts, window position and the window's cache.
-- `%LOCALAPPDATA%\agent-run-monitor-updater`: a copy of the installer (about 125 MB) that the installer keeps for updates.
+This removes the program folder (`%LOCALAPPDATA%\Programs\agent-run-monitor`), the Start menu and desktop shortcuts, the app's entry in Installed apps, and the copy of the installer that the installer keeps in `%LOCALAPPDATA%\agent-run-monitor-updater`. One folder stays behind on purpose, so a reinstall keeps your settings: `%APPDATA%\Agent Run Monitor`, which holds your settings, saved layouts, window position and the window's cache. To remove everything, delete it too (paste the path into the File Explorer address bar).
 
 **Portable zip:** delete the extracted folder, and `%APPDATA%\Agent Run Monitor` if you want your settings gone too.
 
@@ -412,7 +410,7 @@ The README pictures are made from the demo with `node scripts/make-screenshots.m
 
 ## Contributing
 
-Bug reports, fixes and new agents are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains the setup, the tests, the privacy rules for contributors and how to add an agent. Report security problems privately, as described in [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md).
+Bug reports, fixes and new agents are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains the setup, the tests, the privacy rules for contributors and how to add an agent. Report security problems privately, as described in [SECURITY.md](SECURITY.md). Changes are listed in [CHANGELOG.md](CHANGELOG.md). What was tested before the release, and what could not be, is in [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
 ## Licence
 

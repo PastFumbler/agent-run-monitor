@@ -32,4 +32,6 @@ export class ElectronBackend implements Backend {
   onOpenRun: NonNullable<Backend['onOpenRun']> = (cb) => this.bridge.onOpenRun?.(cb) ?? (() => {});
   watchRuns: Backend['watchRuns'] = (ids) => this.bridge.watchRuns(ids);
   setUpdateInterval: Backend['setUpdateInterval'] = (ms) => this.bridge.setUpdateInterval(ms);
+  /** Optional in the interface: older preloads may not have it. */
+  setWatchPriority: NonNullable<Backend['setWatchPriority']> = (focused, slowMs) => this.bridge.setWatchPriority?.(focused, slowMs);
 }

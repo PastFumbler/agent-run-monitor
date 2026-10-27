@@ -89,6 +89,13 @@ export interface Backend {
   watchRuns(ids: string[]): void;
   /** Throttle hint from the renderer's motion/perf policy: minimum ms between pushes. */
   setUpdateInterval(ms: number): void;
+  /**
+   * Optional priority among the watched runs (multiviewer in low GPU mode): runs in `focused`
+   * get detail pushes at the normal interval; other watched runs at most every `slowMs`.
+   * Calling it with an empty `focused` and slowMs 0 clears the priority. Optional so the
+   * fixture backend and older builds need not implement it.
+   */
+  setWatchPriority?(focused: string[], slowMs: number): void;
 }
 
 export const IPC = {
@@ -104,8 +111,11 @@ export const IPC = {
   checkForUpdate: 'arm:checkForUpdate',
   watchRuns: 'arm:watchRuns',
   setUpdateInterval: 'arm:setUpdateInterval',
+  setWatchPriority: 'arm:setWatchPriority',
   evRunsUpdate: 'arm:ev:runsUpdate',
   evRunDetail: 'arm:ev:runDetail',
+  /** Every run detail of one store flush as one message (RunDetail[]); preload fans it out to onRunDetail. */
+  evRunDetails: 'arm:ev:runDetails',
   evPower: 'arm:ev:power',
   evRunFinished: 'arm:ev:runFinished',
   evVisibility: 'arm:ev:visibility',

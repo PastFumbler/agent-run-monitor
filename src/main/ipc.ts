@@ -22,6 +22,7 @@ export interface IpcImpl {
   checkForUpdate(): Promise<unknown>;
   watchRuns(ids: string[]): void;
   setUpdateInterval(ms: number): void;
+  setWatchPriority(focused: string[], slowMs: number): void;
 }
 
 export class BadRequest extends Error {}
@@ -120,4 +121,5 @@ export function registerIpc(impl: IpcImpl, opts: { window: () => WebContents | u
   handle(IPC.checkForUpdate, () => impl.checkForUpdate());
   listen(IPC.watchRuns, (ids) => impl.watchRuns(validIds(ids)));
   listen(IPC.setUpdateInterval, (ms) => impl.setUpdateInterval(validInterval(ms)));
+  listen(IPC.setWatchPriority, (focused, ms) => impl.setWatchPriority(validIds(focused), validInterval(ms)));
 }

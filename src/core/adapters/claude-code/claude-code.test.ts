@@ -121,6 +121,38 @@ describe('claude-code discover', () => {
     expect(direct).toHaveLength(5);
   });
 
+  it('accepts one project folder that directly holds the session files', async () => {
+    const e = env(home);
+    const projDir = join(home, '.claude', 'projects', 'C--Users-alex-code-todo-cli');
+    const refs = await adapter.discover([projDir], { env: e, since: 0, projectRoots: [] });
+    expect(refs).toHaveLength(5);
+    const main = refs.find((r) => r.hint?.kind === 'session')!;
+    expect(main.path).toBe(join(projDir, `${SID}.jsonl`));
+    expect(main.hint?.project).toBe('C--Users-alex-code-todo-cli');
+    // Same files as through the default root, so adding both lists each run once.
+    const both = await adapter.discover([join(home, '.claude'), projDir], { env: e, since: 0, projectRoots: [] });
+    expect(both).toHaveLength(5);
+  });
+
+  it('accepts the folder that holds .claude, and a renamed copy of the projects folder', async () => {
+    const e = env(home);
+    expect(await adapter.discover([home], { env: e, since: 0, projectRoots: [] })).toHaveLength(5);
+    const copy = join(tmp, 'backup-of-claude-projects');
+    await cp(join(home, '.claude', 'projects'), copy, { recursive: true });
+    const refs = await adapter.discover([copy], { env: e, since: 0, projectRoots: [] });
+    expect(refs).toHaveLength(5);
+    expect(refs.find((r) => r.hint?.kind === 'session')!.hint?.project).toBe('C--Users-alex-code-todo-cli');
+  });
+
+  it('finds nothing in a folder without session files (the UI then says which folder to pick)', async () => {
+    const e = env(home);
+    const other = join(tmp, 'unrelated');
+    await mkdir(join(other, 'logs'), { recursive: true });
+    await writeFile(join(other, 'logs', 'events.jsonl'), '{"a":1}\n');
+    await writeFile(join(other, 'notes.jsonl'), '{"a":1}\n');
+    await expect(adapter.discover([other], { env: e, since: 0, projectRoots: [] })).resolves.toEqual([]);
+  });
+
   it('returns nothing for a missing root', async () => {
     const e = env(join(tmp, 'nobody'));
     await expect(adapter.discover([join(tmp, 'nobody', '.claude'), ''], { env: e, since: 0, projectRoots: [] })).resolves.toEqual([]);

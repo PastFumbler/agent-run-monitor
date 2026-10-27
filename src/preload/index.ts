@@ -3,6 +3,7 @@
 
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import { IPC, type Backend, type Unsubscribe } from '@shared/ipc';
+import type { RunDetail } from '@shared/schema';
 
 function subscribe<T>(channel: string) {
   return (cb: (value: T) => void): Unsubscribe => {
@@ -11,6 +12,21 @@ function subscribe<T>(channel: string) {
     return () => {
       ipcRenderer.removeListener(channel, listener);
     };
+  };
+}
+
+/**
+ * Main sends every run detail of one flush as one message (fewer IPC hops with many live tiles);
+ * the renderer's API stays one callback per detail.
+ */
+function subscribeDetails(cb: (d: RunDetail) => void): Unsubscribe {
+  const listener = (_event: IpcRendererEvent, batch: unknown) => {
+    if (!Array.isArray(batch)) return;
+    for (const d of batch as RunDetail[]) cb(d);
+  };
+  ipcRenderer.on(IPC.evRunDetails, listener);
+  return () => {
+    ipcRenderer.removeListener(IPC.evRunDetails, listener);
   };
 }
 
@@ -27,7 +43,7 @@ const backend: Backend = {
   checkForUpdate: () => ipcRenderer.invoke(IPC.checkForUpdate),
 
   onRunsUpdate: subscribe(IPC.evRunsUpdate),
-  onRunDetail: subscribe(IPC.evRunDetail),
+  onRunDetail: subscribeDetails,
   onPower: subscribe(IPC.evPower),
   onRunFinished: subscribe(IPC.evRunFinished),
   onWindowVisibility: subscribe(IPC.evVisibility),
@@ -35,6 +51,7 @@ const backend: Backend = {
 
   watchRuns: (ids) => ipcRenderer.send(IPC.watchRuns, ids),
   setUpdateInterval: (ms) => ipcRenderer.send(IPC.setUpdateInterval, ms),
+  setWatchPriority: (focused, slowMs) => ipcRenderer.send(IPC.setWatchPriority, focused, slowMs),
 };
 
 contextBridge.exposeInMainWorld('armBackend', backend);

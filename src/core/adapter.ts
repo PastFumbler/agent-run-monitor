@@ -56,6 +56,13 @@ export interface ParsedRun {
   turn: TurnState;
   /** Plain words for an error or wait, e.g. "API error: overloaded". */
   turnDetail?: string;
+  /**
+   * Set by adapters whose format cannot record approval prompts, so the turn state is a guess: a
+   * waiting_input turn is not certain, and an open tool may be running or may be waiting for the
+   * user to approve it. core/status.ts then reports a long-quiet open tool as waiting, marked as
+   * inferred, and the UI says "Probably waiting for you".
+   */
+  turnInferred?: boolean;
   openTool?: OpenTool;
   inputTokens?: number;
   outputTokens?: number;

@@ -32,11 +32,11 @@ The first public release.
 - **First-run wizard** that finds installed agents by itself, shows where each one keeps its sessions, and lets you add custom folders.
 - **Settings** for sources and custom paths, refresh rate, notifications on finish and failure, history window, theme, text size, density, time format and start with the OS.
 - **Six soft themes**, three light (Paper, Sage, Dawn) and three dark (Dusk, Moss, Harbor), each checked automatically for text and UI contrast.
-- **Comfortable to leave open**: a reduced-motion setting that follows the OS, a low-GPU mode that turns on by itself on battery or energy saver, and no animation at all while the window is hidden.
+- **Comfortable to leave open**: a reduced-motion setting that follows the OS, a low-GPU mode that turns on by itself when the computer runs on battery, and no animation at all while the window is hidden.
 - **Fun parts**, both optional: rotating synonyms for "running" and a totally fake progress bar.
 - **Notifications** when a run finishes or fails.
 - **Optional update check**, off by default: one request to this project's GitHub Releases page.
-- **Installers** for Windows (per-user NSIS, no administrator rights needed), macOS (DMG) and Linux (AppImage and deb).
+- **Installers** for Windows (per-user NSIS, no administrator rights needed, one installer each for x64 and Arm64, plus portable zips), macOS (DMG) and Linux (AppImage and deb).
 
 ### Security
 
@@ -45,6 +45,10 @@ The first public release.
 - Sandboxed renderer with context isolation, no Node.js integration, a strict Content Security Policy, blocked navigation and pop-ups, and every web permission denied.
 - Likely secrets (API keys, tokens, passwords, private keys, connection strings) are masked on screen by default.
 - A secret scan (`npm run scan-secrets`) checks the tree and full history for keys and personal paths before publishing.
+
+### Verification
+
+- What was tested for this release, the GPU and CPU numbers, and what could not be verified (Smart App Control enforcement, macOS and Linux installs, agents other than Claude Code on real data) are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
 [Unreleased]: https://github.com/OWNER/agent-run-monitor/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/OWNER/agent-run-monitor/releases/tag/v0.1.0
