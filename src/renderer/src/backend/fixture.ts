@@ -168,7 +168,13 @@ export class FixtureBackend implements Backend {
   }
 
   async setSettings(patch: Partial<Settings>): Promise<Settings> {
+    const wasEnabled = AGENT_IDS.map((a) => this.sourceEnabled(a)).join();
     this.settings = normalizeSettings({ ...this.settings, ...patch });
+    // Settings support (additive): switching a source on or off re-sends the full run list, the way
+    // the real backend rescans, so that agent's runs leave (or rejoin) the list at once.
+    if (AGENT_IDS.map((a) => this.sourceEnabled(a)).join() !== wasEnabled) {
+      this.evRuns.emit({ upserts: this.visibleSummaries(), removed: [], full: true });
+    }
     try {
       localStorage.setItem(`${SETTINGS_KEY}.${this.scenario}`, JSON.stringify(this.settings));
     } catch {
@@ -178,7 +184,18 @@ export class FixtureBackend implements Backend {
   }
 
   async listRuns(): Promise<RunSummary[]> {
-    return [...this.runs.values()].map((r) => ({ ...r.summary, counts: { ...r.summary.counts } }));
+    return this.visibleSummaries();
+  }
+
+  // Settings support (additive): like the real backend, runs from a switched-off source are not listed.
+  private sourceEnabled(agent: RunSummary['agent']): boolean {
+    return this.settings.sources[agent]?.enabled !== false;
+  }
+
+  private visibleSummaries(): RunSummary[] {
+    return [...this.runs.values()]
+      .filter((r) => this.sourceEnabled(r.summary.agent))
+      .map((r) => ({ ...r.summary, counts: { ...r.summary.counts } }));
   }
 
   async getRun(id: string, limit = 2000): Promise<RunDetail | null> {
@@ -284,6 +301,7 @@ export class FixtureBackend implements Backend {
       const upserts = [...this.pendingUpserts]
         .map((id) => this.runs.get(id))
         .filter((r): r is DemoRun => !!r)
+        .filter((r) => this.sourceEnabled(r.summary.agent)) // settings support: switched-off sources stay hidden
         .map((r) => ({ ...r.summary, counts: { ...r.summary.counts } }));
       const removed = [...this.pendingRemoved];
       this.pendingUpserts.clear();
