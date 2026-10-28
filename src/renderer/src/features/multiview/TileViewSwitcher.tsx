@@ -1,4 +1,4 @@
-// A compact segmented control for a tile's view (Activity, Overview, Files, Tools, Timeline).
+// A compact segmented control for a tile's view (Activity, Overview, Files, Tools, Timeline, Code changed).
 // RubberSegment is too wide for a quarter-width tile, so tiles use a plain radio group: one tab stop,
 // arrow keys / Home / End move and select, the checked option is bold and underlined (not colour only).
 // Narrow tiles show short labels; the accessible name is always the full view name.
@@ -13,6 +13,7 @@ const SHORT: Record<RunView, string> = {
   files: 'Files',
   tools: 'Tools',
   timeline: 'Time',
+  changes: 'Code',
 };
 
 export function TileViewSwitcher({ value, onChange, label }: { value: RunView; onChange(v: RunView): void; label: string }) {

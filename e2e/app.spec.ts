@@ -124,11 +124,11 @@ test.describe('demo scenario', () => {
     await expect(dialog).toBeVisible();
   });
 
-  test('each of the five views renders (keys 1-5 and the switcher)', async ({ page }) => {
+  test('each of the six views renders (keys 1-6 and the switcher)', async ({ page }) => {
     await page.goto(demo());
     await ready(page);
     await openRun(page, /Add a --due flag to the add command/);
-    const ids = ['view-activity', 'view-overview', 'view-files', 'view-tools', 'view-timeline'];
+    const ids = ['view-activity', 'view-overview', 'view-files', 'view-tools', 'view-timeline', 'view-changes'];
     for (let i = 0; i < ids.length; i++) {
       await page.locator('main').click({ position: { x: 5, y: 5 } });
       await page.keyboard.press(String(i + 1));

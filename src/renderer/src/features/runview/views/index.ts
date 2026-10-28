@@ -1,9 +1,10 @@
-// The five run views. Each is a standalone component taking (detail, compact?) so the multiviewer
+// The run views. Each is a standalone component taking (detail, compact?) so the multiviewer
 // tiles can reuse them unchanged.
 
 import type { ComponentType } from 'react';
 import type { RunView } from '@shared/settings';
 import { ActivityView, type RunViewProps } from './ActivityView';
+import { CodeChangesView } from './CodeChangesView';
 import { FilesView } from './FilesView';
 import { OverviewView } from './OverviewView';
 import { TimelineView } from './TimelineView';
@@ -22,9 +23,10 @@ export const VIEWS: ViewDef[] = [
   { id: 'files', label: 'Files', key: '3', Component: FilesView },
   { id: 'tools', label: 'Tools', key: '4', Component: ToolsView },
   { id: 'timeline', label: 'Timeline', key: '5', Component: TimelineView },
+  { id: 'changes', label: 'Code changed', key: '6', Component: CodeChangesView },
 ];
 
 export const VIEW_BY_ID: Record<RunView, ViewDef> = Object.fromEntries(VIEWS.map((v) => [v.id, v])) as Record<RunView, ViewDef>;
 
 export type { RunViewProps };
-export { ActivityView, FilesView, OverviewView, TimelineView, ToolsView };
+export { ActivityView, CodeChangesView, FilesView, OverviewView, TimelineView, ToolsView };

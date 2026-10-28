@@ -1,6 +1,6 @@
 // Navigation and the multiviewer in the real app, over 14 synthetic Claude Code sessions written by
 // scripts/simulate-live-runs.mjs into a fake home: ← / →, Ctrl+K, the ? cheat sheet, grids for
-// 1-12 tiles, pagination at 13, the five views inside a tile, maximise / Esc, and the low-GPU badge.
+// 1-12 tiles, pagination at 13, the six views inside a tile, maximise / Esc, and the low-GPU badge.
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
@@ -176,7 +176,7 @@ test('multiviewer: grid for 1-12 tiles, 13 paginates, views per tile, maximise a
   await page.keyboard.press('PageUp');
   await expect(label).toHaveText('Page 1 of 2');
 
-  // Each of the five views inside one tile.
+  // Each of the six views inside one tile.
   await openLayout(page, 'n4');
   const t = tile(page, ids[1]);
   for (const [name, testId] of [
@@ -184,6 +184,7 @@ test('multiviewer: grid for 1-12 tiles, 13 paginates, views per tile, maximise a
     ['Files', 'view-files'],
     ['Tools', 'view-tools'],
     ['Timeline', 'view-timeline'],
+    ['Code changed', 'view-changes'],
     ['Activity', 'view-activity'],
   ] as const) {
     await t.getByRole('radio', { name, exact: true }).click();

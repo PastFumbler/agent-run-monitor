@@ -148,7 +148,7 @@ export function useShortcuts(getNav: () => string[]): void {
           st.focusSearch();
           return;
         default:
-          if (/^[1-5]$/.test(key) && st.route === 'run') {
+          if (/^[1-6]$/.test(key) && st.route === 'run') {
             st.setView(RUN_VIEWS[Number(key) - 1]);
             e.preventDefault();
           }

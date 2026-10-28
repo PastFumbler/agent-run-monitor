@@ -8,7 +8,7 @@ import { AGENT_IDS, type AgentId } from './schema';
 export const THEME_IDS = ['paper', 'sage', 'dawn', 'dusk', 'moss', 'harbor'] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const RUN_VIEWS = ['activity', 'overview', 'files', 'tools', 'timeline'] as const;
+export const RUN_VIEWS = ['activity', 'overview', 'files', 'tools', 'timeline', 'changes'] as const;
 export type RunView = (typeof RUN_VIEWS)[number];
 
 export type TriState = 'auto' | 'on' | 'off';

@@ -6,7 +6,7 @@
 
 import type { KeyboardEvent } from 'react';
 
-const RUN_KEYS = new Set(['ArrowLeft', 'ArrowRight', '[', ']', 'j', 'k', 'p', 'm', 'g', 'f', 'Enter', '1', '2', '3', '4', '5']);
+const RUN_KEYS = new Set(['ArrowLeft', 'ArrowRight', '[', ']', 'j', 'k', 'p', 'm', 'g', 'f', 'Enter', '1', '2', '3', '4', '5', '6']);
 
 export function isRunShortcut(e: Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'metaKey' | 'altKey'>): boolean {
   return !e.ctrlKey && !e.metaKey && !e.altKey && RUN_KEYS.has(e.key);

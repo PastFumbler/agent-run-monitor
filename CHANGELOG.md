@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **All runs**: a full-width list of every run grouped by start time (Today, Yesterday, This week, Earlier this month, then by month), with checkboxes, Shift-click ranges and Move to folder. Each run shows its folder. Open it from the sidebar, the command palette or `g` then `a`.
 - **Dashboard**: the app now opens on a home screen with a section for every status, each listing its 3 most recent runs and a "See all (n)" link to All runs filtered to that status. Agent chips filter every section, and clicking a run opens it. Reach it from the sidebar, the command palette or `g` then `d`.
 - **Token usage, code changes and reasoning in the run data**: every adapter now reports input, output and prompt-cache tokens separately (per message and per day where the agent records them, "not reported" where it does not, never estimated), each applied edit with its line counts and diff, and whether a run has readable reasoning. Overview shows the token split.
+- **Code changed** view (key `6`, also in multiviewer tiles): every edit a run applied in time order with time, file and lines added and removed, a total at the top, and the diff on click. Line counts the agent doesn't record read "unknown", never 0.
 - **Move updated runs to top** (Settings > Runs & refresh, on by default): the sidebar's Recent is ordered by last update; switch it off to keep Recent in a fixed order with newly opened runs on top.
 
 ### Fixed

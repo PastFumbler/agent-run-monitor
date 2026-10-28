@@ -55,6 +55,7 @@ const VIEWS: [string, string][] = [
   ['Tools', 'view-tools'],
   ['Files', 'view-files'],
   ['Timeline', 'view-timeline'],
+  ['Code changed', 'view-changes'],
 ];
 
 /** Expands anything collapsed (details, "show more", tool rows) so hidden text would be visible too. */

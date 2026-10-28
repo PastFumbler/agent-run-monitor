@@ -289,13 +289,14 @@ The left side lists your runs, newest first.
 
 ### Run views
 
-Each run has five views. Switch with the tabs or the keys `1` to `5`:
+Each run has six views. Switch with the tabs or the keys `1` to `6`:
 
 1. **Activity**: messages, reasoning steps, tool calls and their results, as they happen.
 2. **Overview**: status, counts, project, branch, model, start time, duration, token use (input, output and prompt-cache tokens as the agent records them, or "Not reported" when the run has none; never estimated), and the source file with a "Reveal in folder" button.
 3. **Files**: the files the run created, edited or deleted.
 4. **Tools**: every tool call, with its result and how long it took.
 5. **Timeline**: the run over time.
+6. **Code changed**: every edit the run applied, oldest first: time, file and lines added and removed, with a total at the top. Click an edit to see its diff (masked like the rest of the run). Agents that don't record an edit's content show the file with "Lines unknown" and no diff, never 0.
 
 The default view is a setting (Settings > Runs & refresh).
 
@@ -327,13 +328,14 @@ Press `?` at any time for the list of shortcuts (it is also linked from the stat
 | `3` | Files view |
 | `4` | Tools view |
 | `5` | Timeline view |
+| `6` | Code changed view |
 | `m` | Add or remove run from the multiviewer |
 | `g` then `m` | Open the multiviewer |
 | `g` then `a` | All runs (organise into folders) |
 | `g` then `d` | Dashboard (home) |
 | `f` | Maximise focused tile |
 | `←` or `→` (in the multiviewer) | Focus the previous or next tile |
-| `1` to `5` (in the multiviewer) | Switch the view of the focused tile |
+| `1` to `6` (in the multiviewer) | Switch the view of the focused tile |
 | `PageUp` or `PageDown` | Previous or next page of tiles |
 | `Ctrl+K` (`⌘K` on a Mac) | Command palette |
 | `Ctrl+,` (`⌘,` on a Mac) | Settings |

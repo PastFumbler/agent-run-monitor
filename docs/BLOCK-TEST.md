@@ -106,7 +106,7 @@ Get-Content "$env:USERPROFILE\Downloads\agent-run-monitor-<version>-setup-x64.ex
    app", "blocked part of this app") and what it names.
 2. The app starts after installing. Exercise everything:
    - **first-run wizard**: go through every step and finish it;
-   - **runs**: open several runs from different agents, use the view switcher (keys 1-5) on each;
+   - **runs**: open several runs from different agents, use the view switcher (keys 1-6) on each;
    - **multiviewer**: pick several runs (m, Ctrl-click or Shift-click) and open the multiviewer
      (g then m); maximise and restore a tile;
    - **settings**: change the theme, text size, low-GPU mode; add a custom folder (folder picker);
@@ -230,7 +230,7 @@ Copy this table into the release notes of the draft (or an issue) and fill it in
 | Downloaded through a browser, Zone.Identifier ZoneId=3 present | |
 | Installer: started without a SAC dialog | |
 | First-run wizard completed | |
-| Runs opened, all five views | |
+| Runs opened, all six views | |
 | Multiviewer with several runs | |
 | Settings: theme, text size, low-GPU, custom folder, start with Windows | |
 | Notification shown and clicked | |

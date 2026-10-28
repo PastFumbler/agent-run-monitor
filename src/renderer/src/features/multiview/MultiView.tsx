@@ -4,7 +4,7 @@
 //   page buttons and PageUp / PageDown. data-grid="CxR" and data-tile-count are on the grid.
 // - Tiles reorder with dnd-kit (pointer, or Space + arrow keys on the drag handle, announced).
 // - f / double-click / the tile button maximise the focused tile; the others stay mounted, hidden and
-//   paused; Esc restores (useShortcuts). 1-5 switch the focused tile's view; ← / → move between tiles.
+//   paused; Esc restores (useShortcuts). 1-6 switch the focused tile's view; ← / → move between tiles.
 // - Only the tiles that can be seen are watched (backend.watchRuns): this page, minus tiles behind a
 //   maximised one and tiles scrolled out of view (one IntersectionObserver on the grid). In low-GPU mode
 //   main also pushes detail for the unfocused tiles at most every 3 s (backend.setWatchPriority).
@@ -198,7 +198,7 @@ export function MultiView() {
   );
 
   // Keys that belong to the grid. Capture phase, so ← / → move between tiles instead of leaving the
-  // multiviewer for the previous/next run; PageUp/PageDown page; 1-5 switch the focused tile's view.
+  // multiviewer for the previous/next run; PageUp/PageDown page; 1-6 switch the focused tile's view.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const st = useStore.getState();
@@ -229,7 +229,7 @@ export function MultiView() {
         goPage(st.multiPage + (key === 'PageDown' ? 1 : -1));
         return;
       }
-      if (/^[1-5]$/.test(key) && st.focusedTile && ids.includes(st.focusedTile)) {
+      if (/^[1-6]$/.test(key) && st.focusedTile && ids.includes(st.focusedTile)) {
         e.preventDefault();
         e.stopPropagation();
         st.setTileView(st.focusedTile, RUN_VIEWS[Number(key) - 1]);

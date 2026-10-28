@@ -40,6 +40,7 @@ const VIEW_LABELS: Record<RunView, string> = {
   files: 'Files',
   tools: 'Tools',
   timeline: 'Timeline',
+  changes: 'Code changed',
 };
 
 const set = (patch: Partial<Settings>) => void updateSettings(patch);

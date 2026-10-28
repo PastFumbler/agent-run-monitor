@@ -216,7 +216,7 @@ test.describe('multiviewer grid', () => {
 });
 
 test.describe('multiviewer tiles', () => {
-  test('each of the five views renders inside a tile (switcher and keys 1-5)', async ({ page }) => {
+  test('each of the six views renders inside a tile (switcher and keys 1-6)', async ({ page }) => {
     const ids = await withLayouts(page, nLayouts([2]));
     await openLayout(page, 'n2');
     const t = tile(page, ids[1]);
@@ -225,6 +225,7 @@ test.describe('multiviewer tiles', () => {
       ['Files', 'view-files'],
       ['Tools', 'view-tools'],
       ['Timeline', 'view-timeline'],
+      ['Code changed', 'view-changes'],
       ['Activity', 'view-activity'],
     ];
     for (const [name, testId] of views) {
@@ -234,12 +235,14 @@ test.describe('multiviewer tiles', () => {
     }
     // The other tile keeps its own view.
     await expect(tile(page, ids[0]).getByTestId('view-activity')).toBeVisible();
-    // Keys 1-5 switch the focused tile (the one clicked last).
+    // Keys 1-6 switch the focused tile (the one clicked last).
     await expect(t).toHaveAttribute('aria-current', 'true');
     await page.keyboard.press('3');
     await expect(t.getByTestId('view-files')).toBeVisible();
     await page.keyboard.press('5');
     await expect(t.getByTestId('view-timeline')).toBeVisible();
+    await page.keyboard.press('6');
+    await expect(t.getByTestId('view-changes')).toBeVisible();
     await expect(tile(page, ids[0]).getByTestId('view-activity')).toBeVisible();
     // Activity in a small tile is a virtualised log with rows.
     await openLayout(page, 'n2');
