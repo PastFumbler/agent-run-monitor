@@ -4,7 +4,6 @@ All notable changes to Agent Run Monitor are recorded here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
 
 ### Added
 
@@ -24,11 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Clicking a run in the sidebar's Recent no longer moves it to the top.
 
-## [0.1.0] - Not released yet
-
-The first public release.
-
-### Added
+## [0.1.0] - 2026-10-28 
+Added
 
 - **Runs from every agent in one window.** The app watches the session files coding agents write to disk and shows each session as a run: what it is doing now, what it did, which files it touched, and whether it finished, failed, is waiting for you or is stuck.
 - **Source adapters** for:
@@ -65,6 +61,9 @@ The first public release.
 ### Verification
 
 - What was tested for this release, the GPU and CPU numbers, and what could not be verified (Smart App Control enforcement, macOS and Linux installs, agents other than Claude Code on real data) are in [docs/VERIFICATION.md](docs/VERIFICATION.md).
+
+The first public release.
+
 
 [Unreleased]: https://github.com/PastFumbler/agent-run-monitor/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/PastFumbler/agent-run-monitor/releases/tag/v0.1.0
