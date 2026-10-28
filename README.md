@@ -295,7 +295,7 @@ Each run has six views, plus Reasoning for runs that have it. Switch with the ta
 2. **Overview**: status, counts, project, branch, model, start time, duration, token use (input, output and prompt-cache tokens as the agent records them, or "Not reported" when the run has none; never estimated), and the source file with a "Reveal in folder" button.
 3. **Files**: the files the run created, edited or deleted.
 4. **Tools**: every tool call, with its result and how long it took.
-5. **Timeline**: the run over time.
+5. **Timeline**: the run over time, with tool calls as bars on lanes. Zoom with the buttons, `+` and `-`, or `Ctrl` + scroll (zooms at the pointer); "Fit to run" (or `0`) shows the whole run again. When zoomed in, drag or scroll sideways to pan. The time axis adapts, from whole seconds to hours or days.
 6. **Code changed**: every edit the run applied, oldest first: time, file and lines added and removed, with a total at the top. Click an edit to see its diff (masked like the rest of the run). Agents that don't record an edit's content show the file with "Lines unknown" and no diff, never 0.
 7. **Reasoning**: the run's reasoning in full, oldest first. The tab (and key `7`) only appears for runs that stored readable reasoning; every supported agent can, but recent Claude Code versions usually store thinking without its text, so most Claude Code runs don't have it.
 
@@ -331,6 +331,9 @@ Press `?` at any time for the list of shortcuts (it is also linked from the stat
 | `5` | Timeline view |
 | `6` | Code changed view |
 | `7` | Reasoning view (runs with readable reasoning) |
+| `+` or `-` | Timeline: zoom in or out |
+| `0` | Timeline: fit to run |
+| `Ctrl` + scroll (`⌘` + scroll on a Mac) | Timeline: zoom at the pointer (drag to pan) |
 | `m` | Add or remove run from the multiviewer |
 | `g` then `m` | Open the multiviewer |
 | `g` then `a` | All runs (organise into folders) |

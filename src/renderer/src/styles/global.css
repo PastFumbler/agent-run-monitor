@@ -1208,19 +1208,104 @@ button.change__head:hover {
   font-variant-numeric: tabular-nums;
 }
 
+.timeline__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+/* Same look as .btn:disabled; aria-disabled keeps focus on the button at either zoom limit. */
+.timeline__controls .btn[aria-disabled='true'] {
+  color: var(--text-muted);
+  border-color: var(--border);
+  background: transparent;
+  opacity: 0.75;
+}
+
+.timeline__zoom {
+  min-width: 5.5em;
+  margin-left: 4px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.timeline__hint {
+  font-size: 0.8rem;
+}
+
+.mv-tile .timeline__hint {
+  display: none;
+}
+
+/* Zoomed in, the lanes are wider than this box: it scrolls sideways and the labels stay put. */
+.timeline__scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: var(--radius-sm);
+}
+
+.timeline__scroll:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.timeline__scroll[data-zoomed] {
+  cursor: grab;
+}
+
+.timeline__scroll[data-dragging] {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.timeline__lanes {
+  min-width: 100%;
+}
+
 .timeline__lane {
   display: grid;
-  grid-template-columns: 100px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: var(--tl-label, 110px) minmax(0, 1fr);
   align-items: center;
   min-height: 30px;
   border-bottom: 1px solid var(--border);
 }
 
 .timeline__label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  padding-right: 10px;
+  background: var(--surface);
   color: var(--text-muted);
   font-size: 0.85rem;
   font-weight: 600;
+}
+
+.timeline__ticks {
+  min-height: 22px;
+}
+
+.timeline__ticks .timeline__track {
+  height: 22px;
+  overflow: hidden;
+}
+
+.timeline__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 22px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .timeline__track {

@@ -8,7 +8,7 @@ import { useStore } from '../../store/store';
 
 const RUNS_ROUTE_OFF = new Set(['ArrowLeft', 'ArrowRight', '[', ']', 'j', 'k', 'Enter', 'p', 'm', '/']);
 
-function isTyping(target: EventTarget | null): boolean {
+export function isTyping(target: EventTarget | null): boolean {
   const el = target as HTMLElement | null;
   if (!el || !el.tagName) return false;
   const tag = el.tagName;
