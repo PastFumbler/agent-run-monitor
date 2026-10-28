@@ -20,6 +20,7 @@ export const SHORTCUTS: ShortcutDef[] = [
   { id: 'search', keys: [['/']], label: 'Search runs', group: 'Runs' },
   { id: 'openRuns', keys: [['g', 'a']], label: 'All runs (organise into folders)', group: 'Runs' },
   { id: 'openHome', keys: [['g', 'd']], label: 'Dashboard (home)', group: 'Runs' },
+  { id: 'openUsage', keys: [['g', 'u']], label: 'Token usage', group: 'Runs' },
   { id: 'view1', keys: [['1']], label: 'Activity view', group: 'Views' },
   { id: 'view2', keys: [['2']], label: 'Overview', group: 'Views' },
   { id: 'view3', keys: [['3']], label: 'Files view', group: 'Views' },

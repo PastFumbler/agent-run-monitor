@@ -1,0 +1,99 @@
+/* Usage ('usage' route). Colours only from theme tokens; no motion of its own (the range control is the
+   motion-aware RubberSegment). The toolbar and tables reuse .mv-toolbar, .table, .sortbtn and .runrow__*. */
+
+.usage {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.usage__body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 12px var(--pad) var(--pad);
+}
+
+.usage__heading {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.usage__table {
+  overflow-x: auto;
+}
+
+.usage__table .table th[scope='row'] {
+  position: static;
+  background: none;
+  color: var(--text);
+  font-size: inherit;
+  font-weight: 550;
+}
+
+.usage__table tfoot th,
+.usage__table tfoot td {
+  border-bottom: 0;
+  font-weight: 650;
+}
+
+.usage__none {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.usage__nonecell {
+  text-align: left;
+}
+
+.usage__sub {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.usage__runcell {
+  max-width: 0;
+  width: 40%;
+  min-width: 180px;
+}
+
+.usage__run {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.usage__run:hover .runrow__title {
+  text-decoration: underline;
+}
+
+.usage__time {
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.usage__notes {
+  margin-top: auto;
+  font-size: 0.82rem;
+}
+
+.usage__notes p {
+  margin: 0 0 4px;
+}

@@ -1,4 +1,4 @@
-// Route-level screens for the main area. Routes: 'dashboard' (home) | 'run' | 'runs' | 'multiview' | 'settings' | 'wizard'.
+// Route-level screens for the main area. Routes: 'dashboard' (home) | 'run' | 'runs' | 'usage' | 'multiview' | 'settings' | 'wizard'.
 // Later features replace the placeholder components; the routing stays as it is.
 
 import { AllRuns } from '../features/allruns/AllRuns';
@@ -6,6 +6,7 @@ import { Dashboard } from '../features/dashboard/Dashboard';
 import { MultiView } from '../features/multiview/MultiView';
 import { RunView } from '../features/runview/RunView';
 import { SettingsScreen } from '../features/settings/SettingsScreen';
+import { Usage } from '../features/usage/Usage';
 import { Wizard } from '../features/wizard/Wizard';
 import { useStore } from '../store/store';
 
@@ -44,6 +45,8 @@ export function RouteView({ nav }: { nav: string[] }) {
       return <Dashboard />;
     case 'runs':
       return <AllRuns />;
+    case 'usage':
+      return <Usage />;
     case 'multiview':
       return <MultiView />;
     case 'settings':

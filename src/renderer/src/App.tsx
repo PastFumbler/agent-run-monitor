@@ -3,7 +3,7 @@
 // and overlays.
 
 import { useEffect, useRef } from 'react';
-import { Settings02Icon, CommandIcon, DashboardSquare01Icon, ListViewIcon } from '@hugeicons/core-free-icons';
+import { Settings02Icon, ChartColumnIcon, CommandIcon, DashboardSquare01Icon, ListViewIcon } from '@hugeicons/core-free-icons';
 import { getBackend } from './backend';
 import { Icon } from './components/Icon';
 import { CommandPalette } from './features/palette/CommandPalette';
@@ -18,7 +18,7 @@ import { useRunListModel } from './store/selectors';
 import { useStore } from './store/store';
 import { applyLook } from './theme/applyTheme';
 import { RouteView } from './views/RouteView';
-import { goBack, openRunWithDefaultView, showAllRuns, showDashboard } from './store/actions';
+import { goBack, openRunWithDefaultView, showAllRuns, showDashboard, showUsage } from './store/actions';
 import { MOD, shortcutText } from './features/shortcuts/shortcuts';
 import { openStartupLayoutWhenReady } from './features/multiview/layouts';
 import { OpenMultiviewButton } from './features/multiview/OpenMultiviewButton';
@@ -134,6 +134,17 @@ function Shell() {
                   data-testid="open-all-runs"
                 >
                   <Icon icon={ListViewIcon} />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn--icon btn--ghost"
+                  aria-label="Token usage"
+                  title={`Token usage (${shortcutText('openUsage')})`}
+                  aria-pressed={route === 'usage'}
+                  onClick={showUsage}
+                  data-testid="open-usage"
+                >
+                  <Icon icon={ChartColumnIcon} />
                 </button>
                 <button
                   type="button"

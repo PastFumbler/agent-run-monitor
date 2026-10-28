@@ -221,7 +221,7 @@ export function AllRuns() {
         </h1>
         <span className="mv-toolbar__spacer" />
         <button type="button" className="btn btn--ghost" onClick={goBack} title="Back (Esc)">
-          {lastRoute === 'multiview' ? 'Back to multiviewer' : lastRoute === 'dashboard' ? 'Back to dashboard' : 'Back to run'}
+          {lastRoute === 'multiview' ? 'Back to multiviewer' : lastRoute === 'dashboard' ? 'Back to dashboard' : lastRoute === 'usage' ? 'Back to usage' : 'Back to run'}
         </button>
       </header>
 

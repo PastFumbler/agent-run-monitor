@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { RunSummary } from '@shared/schema';
 import { normalizeSettings } from '@shared/settings';
+import { goBack, showAllRuns, showUsage } from './actions';
 import { buildSections } from './selectors';
 import { RECENT_KEY, RECENT_MAX, resetStore, useStore } from './store';
 
@@ -66,5 +67,32 @@ describe('moveUpdatedToTop setting', () => {
     expect(normalizeSettings({}).moveUpdatedToTop).toBe(true);
     expect(normalizeSettings({ moveUpdatedToTop: 'no' }).moveUpdatedToTop).toBe(true);
     expect(normalizeSettings({ moveUpdatedToTop: false }).moveUpdatedToTop).toBe(false);
+  });
+});
+
+describe('goBack between All runs and Usage', () => {
+  beforeEach(() => resetStore());
+
+  it('returns to the screen it came from, then goes home instead of bouncing between the two', () => {
+    showUsage();
+    showAllRuns();
+    goBack();
+    expect(useStore.getState().route).toBe('usage');
+    goBack();
+    expect(useStore.getState().route).toBe('dashboard');
+
+    showAllRuns();
+    showUsage();
+    goBack();
+    expect(useStore.getState().route).toBe('runs');
+    goBack();
+    expect(useStore.getState().route).toBe('dashboard');
+  });
+
+  it('returns to Usage from Settings', () => {
+    showUsage();
+    useStore.getState().setRoute('settings');
+    goBack();
+    expect(useStore.getState().route).toBe('usage');
   });
 });

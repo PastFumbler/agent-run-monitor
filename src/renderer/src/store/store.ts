@@ -7,8 +7,11 @@ import type { AppInfo, PowerState, RunsUpdate } from '@shared/ipc';
 import type { AgentId, RunDetail, RunStatus, RunSummary } from '@shared/schema';
 import { defaultSettings, type RunView, type Settings } from '@shared/settings';
 
-/** 'dashboard' is the home screen the app opens on. */
-export type Route = 'dashboard' | 'run' | 'runs' | 'multiview' | 'settings' | 'wizard';
+/** 'dashboard' is the home screen the app opens on. 'usage' is the token usage screen. */
+export type Route = 'dashboard' | 'run' | 'runs' | 'usage' | 'multiview' | 'settings' | 'wizard';
+
+/** Usage screen: the time range its totals cover (calendar based, local time; weeks start on Monday). */
+export type UsageRange = 'today' | 'week' | 'month' | 'all';
 export type Overlay = 'none' | 'palette' | 'cheatsheet';
 
 export interface Filters {
@@ -84,6 +87,8 @@ export interface AppState {
   runsView: RunsViewFilter;
   /** Dashboard: its agent filter (empty = every agent). Its own, like the run list viewer's filters. */
   homeAgents: AgentId[];
+  /** Usage screen: its time range (kept for the session). */
+  usageRange: UsageRange;
 
   settings: Settings;
   settingsLoaded: boolean;
@@ -118,6 +123,7 @@ export interface AppState {
   setRunsView(f: Partial<RunsViewFilter>): void;
   toggleHomeAgent(a: AgentId): void;
   clearHomeAgents(): void;
+  setUsageRange(r: UsageRange): void;
   /** Moves a picked run to another position in the multiviewer order. */
   moveMulti(id: string, toIndex: number): void;
   setSettingsLocal(s: Settings): void;
@@ -155,6 +161,7 @@ export const useStore = create<AppState>()((set, get) => ({
   multiPage: 0,
   runsView: { statuses: [], folder: 'all' },
   homeAgents: [],
+  usageRange: 'week',
   settings: defaultSettings(),
   settingsLoaded: false,
   power: null,
@@ -275,6 +282,9 @@ export const useStore = create<AppState>()((set, get) => ({
   clearHomeAgents() {
     set({ homeAgents: [] });
   },
+  setUsageRange(r) {
+    set({ usageRange: r });
+  },
   moveMulti(id, toIndex) {
     const cur = get().multi;
     const from = cur.indexOf(id);
@@ -325,6 +335,7 @@ export function resetStore(): void {
     multiPage: 0,
     runsView: { statuses: [], folder: 'all' },
     homeAgents: [],
+    usageRange: 'week',
     settings: defaultSettings(),
     settingsLoaded: false,
     power: null,

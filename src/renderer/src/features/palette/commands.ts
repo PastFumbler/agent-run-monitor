@@ -2,7 +2,7 @@
 
 import { THEME_IDS, type TriState } from '@shared/settings';
 import { THEMES } from '../../theme/themes';
-import { showAllRuns, showDashboard, updateSettings } from '../../store/actions';
+import { showAllRuns, showDashboard, showUsage, updateSettings } from '../../store/actions';
 import { useStore } from '../../store/store';
 import { shortcutText } from '../shortcuts/shortcuts';
 
@@ -27,6 +27,13 @@ export function getCommands(): Command[] {
       keywords: 'home start overview running done failed waiting stuck summary',
       shortcut: shortcutText('openHome'),
       run: () => showDashboard(),
+    },
+    {
+      id: 'open-usage',
+      label: 'Show token usage',
+      keywords: 'tokens usage input output cache per agent today week month',
+      shortcut: shortcutText('openUsage'),
+      run: () => showUsage(),
     },
     {
       id: 'open-all-runs',

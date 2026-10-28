@@ -270,6 +270,10 @@ Notes:
 
 The app opens on the **dashboard**, its home screen. It has a section for every status (Running, Waiting for you, Idle, Done, Failed, Stuck, Couldn't read this run). Each section shows its 3 most recently updated runs, or a short line when it has none. **See all (n)** opens [All runs](#all-runs-and-folders) filtered to that status. The agent chips at the top filter every section; All runs still lists every agent, so with chips on the link says "every agent". Click a run to open it. To come back, use the dashboard button at the top of the sidebar, press `g` then `d`, or choose "Show the dashboard" in the command palette.
 
+### Token usage
+
+The chart button at the top of the sidebar (or `g` then `u`, or "Show token usage" in the command palette) opens **Usage**: the tokens each agent used **Today**, **This week** (from Monday), **This month** or for **All time**, split into input, output, cache read and cache write, with a total for every agent. Below it, every run active in that range, sortable by any of those columns; click a run to open it. Tokens count on the day their message was recorded, or on the day the run was last updated when the agent doesn't record that. Anything an agent didn't record says **Not reported**, never 0, and runs that reported nothing sort last. Nothing is estimated and no costs are shown, because prices change. Only runs within "How far back to show runs" (Settings) are loaded, so All time covers that period. `Esc` goes back.
+
 ### The run list
 
 The left side lists your runs, newest first.
@@ -340,6 +344,7 @@ Press `?` at any time for the list of shortcuts (it is also linked from the stat
 | `g` then `m` | Open the multiviewer |
 | `g` then `a` | All runs (organise into folders) |
 | `g` then `d` | Dashboard (home) |
+| `g` then `u` | Token usage |
 | `f` | Maximise focused tile |
 | `←` or `→` (in the multiviewer) | Focus the previous or next tile |
 | `1` to `6` (in the multiviewer) | Switch the view of the focused tile |
@@ -534,7 +539,7 @@ src/
   preload/       Exposes a typed `window.armBackend` to the window, nothing else
   renderer/      The React app
     src/backend/   ElectronBackend (real data) and FixtureBackend (demo data, tests)
-    src/features/  dashboard, runlist, allruns, runview, multiview, palette, shortcuts, settings, wizard, statusbar
+    src/features/  dashboard, runlist, allruns, usage, runview, multiview, palette, shortcuts, settings, wizard, statusbar
     src/theme/     Six themes as CSS variables, and the contrast test
     src/motion/    The motion policy: reduce motion, low GPU mode, hidden window
     src/vendor/react-bits/  Vendored React Bits components (own licence)

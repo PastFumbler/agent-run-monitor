@@ -3,7 +3,7 @@
 
 import { useEffect, useRef } from 'react';
 import { viewForKey } from '../runview/views/available';
-import { goBack, openRunWithDefaultView, showAllRuns, showDashboard, togglePin } from '../../store/actions';
+import { goBack, openRunWithDefaultView, showAllRuns, showDashboard, showUsage, togglePin } from '../../store/actions';
 import { useStore } from '../../store/store';
 
 const RUNS_ROUTE_OFF = new Set(['ArrowLeft', 'ArrowRight', '[', ']', 'j', 'k', 'Enter', 'p', 'm', '/']);
@@ -40,7 +40,7 @@ export function useShortcuts(getNav: () => string[]): void {
           st.setOverlay('none');
         } else if (st.maximizedTile) {
           st.toggleMaximizeFocused();
-        } else if (st.route === 'settings' || st.route === 'runs') {
+        } else if (st.route === 'settings' || st.route === 'runs' || st.route === 'usage') {
           goBack();
         }
         return;
@@ -53,7 +53,7 @@ export function useShortcuts(getNav: () => string[]): void {
       }
       if (mod) return;
 
-      // "g then m" opens the multiviewer, "g then a" the run list viewer, "g then d" the dashboard.
+      // "g then m" opens the multiviewer, "g then a" the run list viewer, "g then d" the dashboard, "g then u" usage.
       if (pendingG.current && Date.now() - pendingG.current < 1200) {
         pendingG.current = 0;
         if (key === 'm') {
@@ -69,6 +69,11 @@ export function useShortcuts(getNav: () => string[]): void {
         if (key === 'd' && st.route !== 'wizard') {
           e.preventDefault();
           showDashboard();
+          return;
+        }
+        if (key === 'u' && st.route !== 'wizard') {
+          e.preventDefault();
+          showUsage();
           return;
         }
       }
