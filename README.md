@@ -347,7 +347,7 @@ Press `?` at any time for the list of shortcuts (it is also linked from the stat
 | `g` then `u` | Token usage |
 | `f` | Maximise focused tile |
 | `←` or `→` (in the multiviewer) | Focus the previous or next tile |
-| `1` to `6` (in the multiviewer) | Switch the view of the focused tile |
+| `1` to `7` (in the multiviewer) | Switch the view of the focused tile (`7` only for runs with readable reasoning) |
 | `PageUp` or `PageDown` | Previous or next page of tiles |
 | `Ctrl+K` (`⌘K` on a Mac) | Command palette |
 | `Ctrl+,` (`⌘,` on a Mac) | Settings |

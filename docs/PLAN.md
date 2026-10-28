@@ -223,7 +223,7 @@ Goose (`sessions/sessions.db`, source-verified) and Crush (per-project `.crush/c
 
 ### 5.2 Navigation
 
-- ← / → (or `[` / `]`): previous / next run in the current list order. `j` / `k`: move the list selection. Enter: open. `p`: pin. `1`–`6`: switch view. `m`: add to the multiviewer selection. `g` then `m`: open the multiviewer. `g` then `a`: all runs. `g` then `d`: dashboard. `g` then `u`: token usage. `f`: maximise focused tile. `Esc`: close overlays, restore tiles. `Ctrl+K`: command palette. `?`: cheat sheet. `Ctrl+,`: settings.
+- ← / → (or `[` / `]`): previous / next run in the current list order. `j` / `k`: move the list selection. Enter: open. `p`: pin. `1`–`7`: switch view (`7`, Reasoning, only for runs that have it). `m`: add to the multiviewer selection. `g` then `m`: open the multiviewer. `g` then `a`: all runs. `g` then `d`: dashboard. `g` then `u`: token usage. `f`: maximise focused tile. `Esc`: close overlays, restore tiles. `Ctrl+K`: command palette. `?`: cheat sheet. `Ctrl+,`: settings.
 - The command palette searches runs by project, agent, status and time ("codex failed yesterday" works: tokens match agent names, statuses and relative dates) and also runs commands (switch theme, open settings, toggle low-GPU mode).
 - The cheat sheet is always one key away and is linked from the status bar.
 
