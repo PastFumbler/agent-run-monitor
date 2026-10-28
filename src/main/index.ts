@@ -18,6 +18,7 @@ import { makeEnv } from '@core/env';
 import { createRegistry } from '@core/registry';
 import { RunStore } from '@core/store';
 import { DEFAULT_WINDOW, loadWindowState, saveWindowState, SettingsFile, type WindowState } from './files';
+import { AiService } from './ai';
 import { mergeSettings, registerIpc } from './ipc';
 import { blockedRequests, contentSecurityPolicy, hardenSession, installGlobalGuards, serveAppFiles } from './security';
 import { applyAutostart, checkForUpdate, powerState, shouldNotify, showNotice, watchPower } from './system';
@@ -77,6 +78,7 @@ function serialSettings<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 let settingsFile: SettingsFile;
+let ai: AiService;
 let store: RunStore;
 let tempDir = '';
 let rendererInterval = 250;
@@ -130,6 +132,7 @@ async function main(): Promise<void> {
   // One message per flush however many watched runs changed (the preload fans it out).
   store.on('runDetails', (ds) => send(IPC.evRunDetails, ds));
   store.on('runFinished', (n) => onRunFinished(n));
+  ai = new AiService(userData, log);
 
   registerIpc(
     {
@@ -179,6 +182,10 @@ async function main(): Promise<void> {
       },
       getPower: () => powerState(),
       checkForUpdate: () => checkForUpdate(app.getVersion(), settings.checkForUpdates),
+      aiStatus: () => ai.status(),
+      setAiKey: (provider, key) => ai.setKey(provider, key),
+      // Only while AI summaries are on (checked again in ai.summarize), and always masked.
+      summarizeRun: async (id) => ai.summarize(settings.aiSummaries ? await store.maskedDetail(id, 600) : null, settings),
       watchRuns: (ids) => store.watchRuns(ids),
       setUpdateInterval: (ms) => {
         rendererInterval = ms;

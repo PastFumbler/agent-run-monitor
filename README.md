@@ -20,7 +20,7 @@ All pictures on this page come from the app's built-in demo, which uses made-up 
 - **Clear status.** Running, waiting for you, idle, done, failed, stuck, or couldn't be read. Each status has its own shape and word as well as a colour.
 - **Multiviewer.** Watch up to 12 runs side by side, each tile with its own view. Layouts can be saved.
 - **Fast to get around.** Arrow keys between runs, `Ctrl+K` command palette, filter chips, pinned and recent runs, and a shortcut sheet on `?`.
-- **Private by design.** Read-only, no network calls, no telemetry, and secrets masked on screen by default.
+- **Private by design.** Read-only, no network calls unless you opt in, no telemetry, and secrets masked on screen by default.
 - **Easy on your machine.** Low GPU mode (automatic on battery), reduce motion, and everything pauses while the window is hidden.
 - **Set up in a minute.** A first-run wizard finds your installed agents on its own and shows how many runs each has.
 
@@ -34,7 +34,9 @@ All pictures on this page come from the app's built-in demo, which uses made-up 
 
 - **Read-only.** The app opens agent files for reading only. It never writes, renames, moves or deletes anything in any agent's folders. Two agents (Cursor and OpenCode) keep their sessions in a database. For those, the app copies the database into its own temporary folder and reads the copy, so the original is never opened by a database engine. A test in the code fails the build if any other parsing code uses a file-writing function.
 - **Local-only.** Everything stays on your computer. There is no account, no telemetry, no analytics and no crash reporting. The app makes no network calls. It blocks every web request that is not for its own files, and the spellchecker (which would download dictionaries) is switched off.
-- **One optional exception: the update check.** It is **off** by default. If you turn it on (Settings > Privacy > Check for updates), the app sends one request to GitHub Releases to see whether a newer version exists. Nothing about you or your runs is sent.
+- **Two optional exceptions, both off by default.**
+  - **The update check.** If you turn it on (Settings > Privacy > Check for updates), the app sends one request to GitHub Releases to see whether a newer version exists. Nothing about you or your runs is sent.
+  - **AI summaries.** Each run's Overview starts with a summary built on your computer. If you turn on AI summaries (Settings > AI summary) and save your own Anthropic or OpenAI API key, the app first warns you that run content will be sent to that provider. After that, opening a run's Overview sends that one run's request, changed file names and recent messages and tool calls (at most about 8,000 characters) to the provider, from the main process only. Likely secrets are masked before sending, even when on-screen masking is off. Your key stays in the main process, encrypted by your operating system's secure storage (or kept only until you quit where there is none); it is never shown again or logged. Summaries are saved in the app's own folder, so the same run content is never sent twice. If a request fails, Overview shows the local summary with a short note.
 - **Secrets are masked on screen.** "Mask likely secrets" is **on** by default. Before any text reaches the window, the app replaces things that look like secrets with `••••` and a label, for example `sk-…••••[OpenAI key]`. It covers API keys and tokens from OpenAI, Anthropic, Google, GitHub, GitLab, Slack, Stripe, AWS, npm, Hugging Face, SendGrid, Twilio, xAI, Groq and others; bearer and basic auth headers; JWTs; private key blocks; `password=` and `secret=` style settings; and connection strings or URLs with a password in them. Masking only changes what you see; your files stay as they are. It works by recognising patterns, so it can miss an unusual secret. Take care when you share screenshots.
 - **Sandboxed window.** The window runs in Chromium's sandbox with context isolation and no Node.js access. It cannot load anything from the internet, and it only gets runs in the app's own common format, never raw agent files.
 
@@ -292,7 +294,7 @@ The left side lists your runs, newest first.
 Each run has six views, plus Reasoning for runs that have it. Switch with the tabs or the keys `1` to `7`:
 
 1. **Activity**: messages, reasoning steps, tool calls and their results, as they happen. Thinking the agent stored without its text (common for recent Claude Code versions) shows as one line, such as "Thinking (3.2 s, text not stored)".
-2. **Overview**: status, counts, project, branch, model, start time, duration, token use (input, output and prompt-cache tokens as the agent records them, or "Not reported" when the run has none; never estimated), and the source file with a "Reveal in folder" button.
+2. **Overview**: a one- or two-sentence summary of what the run is doing or did (built on your computer from the request, files, current tool and counts; optionally written by an AI provider, see [Privacy](#privacy)), status, counts, project, branch, model, start time, duration, token use (input, output and prompt-cache tokens as the agent records them, or "Not reported" when the run has none; never estimated), and the source file with a "Reveal in folder" button.
 3. **Files**: the files the run created, edited or deleted.
 4. **Tools**: every tool call, with its result and how long it took.
 5. **Timeline**: the run over time, with tool calls as bars on lanes. Zoom with the buttons, `+` and `-`, or `Ctrl` + scroll (zooms at the pointer); "Fit to run" (or `0`) shows the whole run again. When zoomed in, drag or scroll sideways to pan. The time axis adapts, from whole seconds to hours or days.
@@ -379,6 +381,7 @@ Open with `Ctrl+,` (`⌘,` on a Mac) or the gear button. Changes apply straight 
 - **Motion & performance**: see below.
 - **Fun**: see below.
 - **Privacy**: secret masking and the update check.
+- **AI summary**: optional AI-written Overview summaries: provider (Anthropic or OpenAI), model, your API key, and the switch, which warns before anything is sent. Off by default.
 - **System**: start the app when you sign in.
 
 **Reduce motion and low GPU mode are two different settings.**
@@ -472,7 +475,7 @@ Settings > About shows the exact path of your settings file.
 ## FAQ
 
 **Does it send my code or sessions anywhere?**
-No. Nothing leaves your computer. The app makes no network requests at all, except the optional update check, which is off unless you turn it on and only asks GitHub for the latest version number.
+Not unless you ask it to. The app makes no network requests at all, except two optional features that are off unless you turn them on: the update check, which only asks GitHub for the latest version number, and AI summaries, which send the masked content of the run you open in Overview to the AI provider you chose, with your own key.
 
 **Can it start, stop or approve things in my agents?**
 No. It is a viewer. It never writes to an agent's files and has no way to send anything to an agent.
@@ -616,8 +619,8 @@ To add an agent, follow [CONTRIBUTING.md: Adding a source adapter](CONTRIBUTING.
 ### Security boundaries
 
 - **The window can't touch your disk.** It runs sandboxed with context isolation and no Node.js. Its only door is the typed `Backend` interface in `src/shared/ipc.ts`, and every call is validated in `src/main/ipc.ts`.
-- **No network.** `src/main/security.ts` sets a strict Content Security Policy, blocks navigation, pop-ups and every permission request, and cancels any web request that is not for the app's own files. The opt-in update check is allowed one URL at a time, only while it runs.
-- **Read-only parsing.** `src/core/readonly.test.ts` fails the build if any code in `src/core` other than the SQLite snapshot helper uses a file-writing API. The app writes only its own settings, into its own settings folder (`src/main/files.ts`).
+- **No network.** `src/main/security.ts` sets a strict Content Security Policy, blocks navigation, pop-ups and every permission request, and cancels any web request that is not for the app's own files. The opt-in update check and opt-in AI summaries (`src/main/ai.ts`) are allowed one URL at a time, only while they run, each from its own session.
+- **Read-only parsing.** `src/core/readonly.test.ts` fails the build if any code in `src/core` other than the SQLite snapshot helper uses a file-writing API. The app writes only its own files (settings, window state and, if you use AI summaries, the encrypted key and the summary cache) into its own settings folder (`src/main/files.ts`, `src/main/ai.ts`).
 - **No child processes, no native modules.** This keeps the app's footprint small and predictable, which also matters for Windows Smart App Control (see [docs/BLOCK-TEST.md](docs/BLOCK-TEST.md)).
 
 ### Tests

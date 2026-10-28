@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Code changed** view (key `6`, also in multiviewer tiles): every edit a run applied in time order with time, file and lines added and removed, a total at the top, and the diff on click. Line counts the agent doesn't record read "unknown", never 0.
 - **Reasoning** view (key `7`, also in multiviewer tiles): a run's readable reasoning in full, oldest first. It only appears for runs that stored readable reasoning; thinking stored without its text is left out and counted, and shows as a single line in Activity.
 - **Timeline zoom**: zoom buttons, `+` / `-`, `Ctrl` + scroll at the pointer and "Fit to run" (`0`), with drag or sideways scroll to pan; the time axis stays readable from the whole run down to a few seconds. Works in multiviewer tiles too.
+- **Overview summary**: every run's Overview starts with one or two plain sentences on what it is doing or did, built on your computer. Optional AI summaries (Settings > AI summary, off by default) use your own Anthropic or OpenAI key, warn before anything is sent, mask secrets first and cache results so the same run content is never sent twice.
 - **Move updated runs to top** (Settings > Runs & refresh, on by default): the sidebar's Recent is ordered by last update; switch it off to keep Recent in a fixed order with newly opened runs on top.
 
 ### Fixed

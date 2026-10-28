@@ -1,4 +1,5 @@
-// The only files the app writes: its own settings and window state, inside userData.
+// The only files the app writes: its own settings, window state and (when AI summaries are used)
+// the AI key and summary cache files (src/main/ai.ts), all inside userData.
 // Writes are atomic (temp file + rename) and refuse any target outside userData.
 
 import { randomBytes } from 'node:crypto';
@@ -36,7 +37,7 @@ export async function writeJsonAtomic(dir: string, name: string, data: unknown):
   }
 }
 
-async function readJsonFile(file: string): Promise<{ exists: boolean; data?: unknown; error?: string }> {
+export async function readJsonFile(file: string): Promise<{ exists: boolean; data?: unknown; error?: string }> {
   let text: string;
   try {
     text = await readFile(file, 'utf8');

@@ -42,6 +42,9 @@ const backend: Backend = {
   revealSource: (id) => ipcRenderer.invoke(IPC.revealSource, id),
   getPower: () => ipcRenderer.invoke(IPC.getPower),
   checkForUpdate: () => ipcRenderer.invoke(IPC.checkForUpdate),
+  aiStatus: () => ipcRenderer.invoke(IPC.aiStatus),
+  setAiKey: (provider, key) => ipcRenderer.invoke(IPC.setAiKey, provider, key),
+  summarizeRun: (id) => ipcRenderer.invoke(IPC.summarizeRun, id),
 
   onRunsUpdate: subscribe(IPC.evRunsUpdate),
   onRunDetail: subscribeDetails,

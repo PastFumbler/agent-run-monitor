@@ -36,7 +36,9 @@ What the app is designed to guarantee, so you can tell what counts as a vulnerab
 
 - The main process installs a network guard on the window's session that cancels every request that is not for the app's own local files. The window uses a direct connection with no proxy auto-discovery.
 - The spellchecker, which would download dictionaries, is turned off. Fonts and icons are bundled.
-- The **only** network call is the optional update check, which is **off by default**. When you turn it on, the main process makes a single GET request, without cookies or credentials, to the GitHub Releases API for this project, from a separate session that allows only that one URL while the request runs. It sends nothing about you or your runs.
+- The only network calls are two opt-in features, both **off by default**:
+  - The update check. When you turn it on, the main process makes a single GET request, without cookies or credentials, to the GitHub Releases API for this project, from a separate session that allows only that one URL while the request runs. It sends nothing about you or your runs.
+  - AI summaries in Overview. When you turn them on (after a warning that run content will be sent) and save your own API key, opening a run's Overview makes the main process send that run's masked content (request, changed file names and recent messages and tool calls, at most about 8,000 characters) to the provider you chose, Anthropic or OpenAI, from its own session that allows only that provider's API URL while the request runs. Secrets are masked first whatever the masking setting. The key is stored in the main process only, encrypted with the operating system's secure storage (or kept in memory for the session where there is none), and is never sent to the window or logged. Summaries are cached in the app's folder so the same run content is never sent twice.
 - Links are opened in your browser only if they point at this project's GitHub pages. Every other navigation, pop-up and redirect is blocked.
 
 **Sandboxed renderer.** The window runs with context isolation, the Chromium sandbox, no Node.js integration (including workers and sub-frames), no `<webview>` tags and web security on. The renderer reaches the backend only through a small typed API exposed by the preload script, and the main process accepts IPC calls only from the app's own pages. The renderer never sees raw agent files, only the common run format.
@@ -55,8 +57,8 @@ Examples:
 
 - any way for a session file, or anything inside it, to run code, load remote content, make a network request, or escape the renderer sandbox;
 - the app writing to, locking or otherwise changing agent files or folders;
-- a network request made without the update check turned on, or to any other destination;
-- the update check sending anything beyond the single request described above;
+- a network request made without the update check or AI summaries turned on, or to any other destination;
+- the update check sending anything beyond the single request described above, or an AI summary request sending unmasked text, more than the run being viewed, or the API key anywhere but the chosen provider;
 - secrets that should be masked by the documented patterns showing unmasked;
 - crashes or hangs caused by crafted session files that stop the app from working (a single run showing "couldn't read this run" is expected behaviour, not a vulnerability).
 

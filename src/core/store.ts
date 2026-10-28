@@ -420,9 +420,22 @@ export class RunStore {
   }
 
   async getDetail(id: string, limit = DEFAULT_DETAIL_LIMIT): Promise<RunDetail | null> {
+    if (this.entries.has(id)) this.detailLimits.set(id, limit);
+    return this.buildDetail(id, limit, false);
+  }
+
+  /**
+   * A run's detail built with masking on whatever the display setting, without changing what is
+   * pushed to the renderer (the watched detail limit is left alone). For text that leaves the app
+   * (AI summaries).
+   */
+  maskedDetail(id: string, limit = DEFAULT_DETAIL_LIMIT): Promise<RunDetail | null> {
+    return this.buildDetail(id, limit, true);
+  }
+
+  private async buildDetail(id: string, limit: number, forceMask: boolean): Promise<RunDetail | null> {
     const e = this.entries.get(id);
     if (!e) return null;
-    this.detailLimits.set(id, limit);
     if (!e.state) {
       await new Promise<void>((resolve) => {
         e.waiters.push(resolve);
@@ -430,7 +443,7 @@ export class RunStore {
       });
     }
     if (e.removed || !e.state) return null;
-    return toDetail(e.ref, e.state, this.clock.now(), this.mask, limit);
+    return toDetail(e.ref, e.state, this.clock.now(), forceMask || this.mask, limit);
   }
 
   /** Per-source detection: default and custom roots, whether they exist, and run counts (discover only). */

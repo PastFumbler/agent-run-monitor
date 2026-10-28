@@ -15,13 +15,15 @@ import type {
   UpdateInfo,
   Unsubscribe,
 } from '@shared/ipc';
+import { modelFor, PROVIDER_NAMES, type AiProvider, type AiStatus, type AiSummaryResult } from '@shared/ai';
 import { AGENT_CONFIDENCE } from '@shared/agents';
 import { AGENT_IDS, AGENT_NAMES, type RunDetail, type RunStatus, type RunSummary, type SourceStatus } from '@shared/schema';
 import { applyFolderOp, type FolderOp, type FolderResult } from '@shared/folders';
-import { defaultSettings, normalizeSettings, type Settings } from '@shared/settings';
+import { defaultSettings, guardAiProvider, normalizeSettings, type Settings } from '@shared/settings';
 import { setClockTo, shiftClock, nowMs } from './clock';
 import {
   buildDemo,
+  demoAiSummary,
   demoFolders,
   demoProject,
   detailOf,
@@ -134,6 +136,8 @@ export class FixtureBackend implements Backend {
   private liveTimer: ReturnType<typeof setTimeout> | null = null;
   private paused: boolean;
   private lastFlush = 0;
+  /** Which providers have a demo key. The key itself is not kept: the demo never sends anything. */
+  private aiKeys = new Set<AiProvider>();
 
   private evRuns = new Emitter<RunsUpdate>();
   private evDetail = new Emitter<RunDetail>();
@@ -173,7 +177,7 @@ export class FixtureBackend implements Backend {
 
   async setSettings(patch: Partial<Settings>): Promise<Settings> {
     const wasEnabled = AGENT_IDS.map((a) => this.sourceEnabled(a)).join();
-    this.settings = normalizeSettings({ ...this.settings, ...patch });
+    this.settings = guardAiProvider(this.settings, normalizeSettings({ ...this.settings, ...patch }), patch);
     // Settings support (additive): switching a source on or off re-sends the full run list, the way
     // the real backend rescans, so that agent's runs leave (or rejoin) the list at once.
     if (AGENT_IDS.map((a) => this.sourceEnabled(a)).join() !== wasEnabled) {
@@ -268,6 +272,28 @@ export class FixtureBackend implements Backend {
 
   async checkForUpdate(): Promise<UpdateInfo> {
     return { current: '0.1.0-demo', error: 'Update checks are off in the demo (no network).' };
+  }
+
+  async aiStatus(): Promise<AiStatus> {
+    return { keys: { anthropic: this.aiKeys.has('anthropic'), openai: this.aiKeys.has('openai') }, secure: true };
+  }
+
+  async setAiKey(provider: AiProvider, key: string | null): Promise<AiStatus> {
+    if (key === null) this.aiKeys.delete(provider);
+    else this.aiKeys.add(provider);
+    return this.aiStatus();
+  }
+
+  /** Like main, minus the network: a made-up summary after a short pause. */
+  async summarizeRun(id: string): Promise<AiSummaryResult> {
+    const s = this.settings;
+    if (!s.aiSummaries) return { error: 'AI summaries are off in Settings.' };
+    const r = this.runs.get(id);
+    if (!r) return { error: 'That run is no longer available.' };
+    if (r.summary.status === 'unreadable') return { error: "This run couldn't be read." };
+    if (!this.aiKeys.has(s.aiProvider)) return { error: `No ${PROVIDER_NAMES[s.aiProvider]} API key is saved. Add one in Settings > AI summary.` };
+    await new Promise((res) => setTimeout(res, 300));
+    return { text: demoAiSummary(detailOf(r)), provider: s.aiProvider, model: modelFor(s.aiProvider, s.aiModel), cached: false };
   }
 
   onRunsUpdate(cb: (u: RunsUpdate) => void): Unsubscribe {

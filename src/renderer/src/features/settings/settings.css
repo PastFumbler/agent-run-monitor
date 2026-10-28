@@ -188,6 +188,10 @@
   line-height: 1.45;
 }
 
+.ai-confirm__text {
+  margin: 0 0 6px;
+}
+
 .effective {
   margin: 8px 0 0;
   padding: 6px 10px;

@@ -4,10 +4,11 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import path from 'node:path';
 import { IPC } from '@shared/ipc';
+import { AI_PROVIDERS, cleanApiKey, type AiProvider } from '@shared/ai';
 import { AGENT_IDS } from '@shared/schema';
 import { parseFolderOp, type FolderOp } from '@shared/folders';
 import type { Settings, SourceSettings } from '@shared/settings';
-import { normalizeSettings } from '@shared/settings';
+import { guardAiProvider, normalizeSettings } from '@shared/settings';
 import { isAppUrl } from './security';
 
 export interface IpcImpl {
@@ -22,6 +23,9 @@ export interface IpcImpl {
   revealSource(id: string): Promise<void>;
   getPower(): unknown;
   checkForUpdate(): Promise<unknown>;
+  aiStatus(): Promise<unknown>;
+  setAiKey(provider: AiProvider, key: string | null): Promise<unknown>;
+  summarizeRun(id: string): Promise<unknown>;
   watchRuns(ids: string[]): void;
   setUpdateInterval(ms: number): void;
   setWatchPriority(focused: string[], slowMs: number): void;
@@ -51,6 +55,19 @@ export function validFolderOp(v: unknown): FolderOp {
   const op = parseFolderOp(v);
   if (!op) throw new BadRequest('bad folder change');
   return op;
+}
+
+export function validProvider(v: unknown): AiProvider {
+  if (typeof v !== 'string' || !(AI_PROVIDERS as readonly string[]).includes(v)) throw new BadRequest('bad provider');
+  return v as AiProvider;
+}
+
+/** A key to save, or null to remove it. The message never includes the value. */
+export function validApiKey(v: unknown): string | null {
+  if (v === null) return null;
+  const key = cleanApiKey(v);
+  if (!key) throw new BadRequest('bad api key');
+  return key;
 }
 
 export function validInterval(v: unknown): number {
@@ -85,7 +102,7 @@ export function mergeSettings(current: Settings, patch: unknown): Settings {
   merged.sources = sources;
   if ('projectRoots' in patch) merged.projectRoots = absolutePaths(patch.projectRoots) ?? current.projectRoots;
   merged.version = 1;
-  return normalizeSettings(merged);
+  return guardAiProvider(current, normalizeSettings(merged), patch as Partial<Settings>);
 }
 
 export function registerIpc(impl: IpcImpl, opts: { window: () => WebContents | undefined; devOrigin?: string; log: (m: string) => void }) {
@@ -128,6 +145,9 @@ export function registerIpc(impl: IpcImpl, opts: { window: () => WebContents | u
   handle(IPC.revealSource, (id) => impl.revealSource(validId(id)));
   handle(IPC.getPower, () => impl.getPower());
   handle(IPC.checkForUpdate, () => impl.checkForUpdate());
+  handle(IPC.aiStatus, () => impl.aiStatus());
+  handle(IPC.setAiKey, (provider, key) => impl.setAiKey(validProvider(provider), validApiKey(key)));
+  handle(IPC.summarizeRun, (id) => impl.summarizeRun(validId(id)));
   listen(IPC.watchRuns, (ids) => impl.watchRuns(validIds(ids)));
   listen(IPC.setUpdateInterval, (ms) => impl.setUpdateInterval(validInterval(ms)));
   listen(IPC.setWatchPriority, (focused, ms) => impl.setWatchPriority(validIds(focused), validInterval(ms)));

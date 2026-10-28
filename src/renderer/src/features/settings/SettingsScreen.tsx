@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft02Icon, LinkSquare02Icon } from '@hugeicons/core-free-icons';
 import type { UpdateInfo } from '@shared/ipc';
+import { PROVIDER_NAMES } from '@shared/ai';
 import { RELEASES_URL } from '@shared/project';
 import { DEFAULT_VIEWS, HISTORY_CHOICES, REFRESH_CHOICES, type RunView, type Settings, type TriState } from '@shared/settings';
 import { getBackend } from '../../backend';
@@ -14,6 +15,7 @@ import { useMotionPolicy } from '../../motion/context';
 import { goBack, updateSettings } from '../../store/actions';
 import { useStore } from '../../store/store';
 import { MOD } from '../shortcuts/shortcuts';
+import { AiSection } from './AiSection';
 import { ChoiceGroup, SwitchRow, ThemePicker } from './controls';
 import { historyLabel, lowGpuStateText, reduceMotionStateText, refreshLabel, updateResultText } from './describe';
 import { FoldersSection } from './FoldersSection';
@@ -29,6 +31,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'motion', label: 'Motion & performance' },
   { id: 'fun', label: 'Fun' },
   { id: 'privacy', label: 'Privacy' },
+  { id: 'ai', label: 'AI summary' },
   { id: 'system', label: 'System' },
   { id: 'about', label: 'About' },
 ] as const;
@@ -141,9 +144,16 @@ function PrivacySection({ s }: { s: Settings }) {
         <p>
           <strong>Read-only.</strong> Agent Run Monitor only reads your agents' session files. It never changes, moves or deletes them.
         </p>
-        <p>
-          <strong>Local-only.</strong> Everything stays on this computer. Nothing is uploaded.
-        </p>
+        {s.aiSummaries ? (
+          <p>
+            <strong>Local-only, except AI summaries.</strong> You turned on AI summaries: opening a run's Overview sends its masked
+            content to {PROVIDER_NAMES[s.aiProvider]}. Everything else stays on this computer.
+          </p>
+        ) : (
+          <p>
+            <strong>Local-only.</strong> Everything stays on this computer. Nothing is uploaded.
+          </p>
+        )}
         <p>
           <strong>No telemetry.</strong> No analytics, no tracking, no crash reports.
         </p>
@@ -157,7 +167,7 @@ function PrivacySection({ s }: { s: Settings }) {
         />
         <SwitchRow
           label="Check for updates"
-          description="Off unless you turn it on. When on, the app asks GitHub Releases whether a newer version exists. That single GET request is the only network request the app ever makes."
+          description="Off unless you turn it on. When on, the app asks GitHub Releases whether a newer version exists. That single GET request is the only network request the app makes, apart from AI summaries if you turn them on."
           checked={s.checkForUpdates}
           onChange={(v) => set({ checkForUpdates: v })}
         >
@@ -455,6 +465,10 @@ export function SettingsScreen() {
           </Section>
 
           <PrivacySection s={s} />
+
+          <Section id="ai" title="AI summary">
+            <AiSection s={s} />
+          </Section>
 
           <Section id="system" title="System">
             <div className="card setting-group">

@@ -898,6 +898,40 @@ pre,
   gap: var(--gap);
 }
 
+.overview__summary {
+  padding: 12px 14px;
+}
+
+.overview__summary-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.overview__summary h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.overview__summary-source,
+.overview__summary-note {
+  font-size: 0.82rem;
+}
+
+.overview__summary-text {
+  margin: 6px 0 0;
+  max-width: 75ch;
+}
+
+.overview__summary-note {
+  margin: 4px 0 0;
+}
+
+.overview__summary-note:empty {
+  margin: 0;
+}
+
 .overview__status {
   display: flex;
   gap: 12px;

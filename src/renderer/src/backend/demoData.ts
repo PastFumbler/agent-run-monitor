@@ -570,6 +570,28 @@ export function detailOf(run: DemoRun, limit = 2000): RunDetail {
   };
 }
 
+/**
+ * A made-up "AI" summary for the browser demo, which never calls a provider: worded differently from
+ * the local summary so the two are easy to tell apart on screen.
+ */
+export function demoAiSummary(d: RunDetail): string {
+  const s = d.summary;
+  const task = s.title ? `“${s.title.replace(/[.!?]+$/, '')}”` : 'an untitled task';
+  const top = [...d.files].sort((a, b) => b.count - a.count)[0]?.path.split('/').pop();
+  const files = d.files.length === 1 ? '1 file' : `${d.files.length} files`;
+  const touched = d.files.length ? `It has touched ${files}${top && d.files.length > 1 ? `, mostly ${top},` : ''}` : 'It has not changed any files';
+  const where: Record<string, string> = {
+    running: 'and is still going',
+    waiting: 'and is waiting for your reply',
+    idle: 'and is paused between turns',
+    done: 'and wrapped up cleanly',
+    failed: 'but stopped on an error',
+    stuck: 'but has gone quiet for a long time',
+    unreadable: '',
+  };
+  return `In ${s.projectName}, the agent took on ${task}. ${touched} ${where[s.status] ?? ''}.`.replace(/\s+\./g, '.');
+}
+
 export function refreshSummary(run: DemoRun): void {
   run.summary.counts = countsOf(run);
   run.summary.usage = usageOf(run.events);

@@ -1,6 +1,6 @@
 // Locks the app down: no permissions, no navigation, no pop-ups, a strict CSP, and a network guard
-// that cancels every request that is not for the app's own files. The single exception is the
-// opt-in update check, which main allows one URL at a time while it runs.
+// that cancels every request that is not for the app's own files. The exceptions are the opt-in
+// update check and opt-in AI summaries, which main allows one URL at a time while they run.
 
 import { app, session, shell, type Session, type WebContents } from 'electron';
 import path from 'node:path';
@@ -17,7 +17,7 @@ const LOCAL_SCHEMES = new Set(['file:', 'devtools:', 'data:', 'blob:']);
 const allowedOnce = new Map<string, number>();
 let blockedCount = 0;
 
-/** Lets main fetch exactly this URL while `fn` runs (the update check). */
+/** Lets main fetch exactly this URL while `fn` runs (the update check, an AI summary). */
 export async function withAllowedUrl<T>(url: string, fn: () => Promise<T>): Promise<T> {
   allowedOnce.set(url, (allowedOnce.get(url) ?? 0) + 1);
   try {
@@ -130,7 +130,16 @@ export function serveAppFiles(ses: Session, rendererDir: string, csp: string): v
  * settings. Guarded the same way: only the URL being checked may load.
  */
 export function updateSession(opts: SecurityOptions): Session {
-  const ses = session.fromPartition('arm-update-check', { cache: false });
+  return guardedSession('arm-update-check', 'the update session', opts);
+}
+
+/** The session for opt-in AI summaries (src/main/ai.ts): its own partition, guarded the same way. */
+export function aiSession(opts: SecurityOptions): Session {
+  return guardedSession('arm-ai-summary', 'the AI summary session', opts);
+}
+
+function guardedSession(partition: string, what: string, opts: SecurityOptions): Session {
+  const ses = session.fromPartition(partition, { cache: false });
   if (!guarded.has(ses)) {
     guarded.add(ses);
     void ses.setProxy({ mode: 'system' });
@@ -139,7 +148,7 @@ export function updateSession(opts: SecurityOptions): Session {
     ses.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, (details, cb) => {
       if (allowedOnce.has(details.url)) return cb({});
       blockedCount++;
-      opts.log('network guard: blocked a request from the update session');
+      opts.log(`network guard: blocked a request from ${what}`);
       cb({ cancel: true });
     });
   }

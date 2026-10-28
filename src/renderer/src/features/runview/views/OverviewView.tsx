@@ -1,4 +1,4 @@
-// Overview: plain-words status, counters, timing, where the run came from, sub-runs, and a calm
+// Overview: a short summary of what the run is doing or did (OverviewSummary), plain-words status, counters, timing, where the run came from, sub-runs, and a calm
 // "Couldn't read this run" card for unreadable runs (never a crash).
 
 import { FolderOpenIcon, HelpCircleIcon } from '@hugeicons/core-free-icons';
@@ -15,6 +15,7 @@ import StatusMark from '../../../vendor/react-bits/StatusMark/StatusMark';
 import { useId } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { RunViewProps } from './ActivityView';
+import { OverviewSummary } from './OverviewSummary';
 
 export function OverviewView({ detail, compact }: RunViewProps) {
   const s = detail.summary;
@@ -26,7 +27,7 @@ export function OverviewView({ detail, compact }: RunViewProps) {
   const now = useNow();
   // Ids must be unique when several tiles show an Overview at once.
   const uid = useId();
-  const ids = { readerror: `${uid}-readerror`, status: `${uid}-status`, parent: `${uid}-parent`, subruns: `${uid}-subruns` };
+  const ids = { summary: `${uid}-summary`, readerror: `${uid}-readerror`, status: `${uid}-status`, parent: `${uid}-parent`, subruns: `${uid}-subruns` };
   const tokens = totalTokens(s.usage);
 
   const stats: { label: string; value: number }[] = [
@@ -40,6 +41,7 @@ export function OverviewView({ detail, compact }: RunViewProps) {
 
   return (
     <div className="overview" data-testid="view-overview">
+      {s.status !== 'unreadable' ? <OverviewSummary detail={detail} compact={compact} headingId={ids.summary} /> : null}
       {s.status === 'unreadable' ? (
         <section className="readerror" aria-labelledby={ids.readerror}>
           <h2 id={ids.readerror}>

@@ -24,6 +24,9 @@ export class ElectronBackend implements Backend {
   revealSource: Backend['revealSource'] = (id) => this.bridge.revealSource(id);
   getPower = () => this.bridge.getPower();
   checkForUpdate = () => this.bridge.checkForUpdate();
+  aiStatus = () => this.bridge.aiStatus();
+  setAiKey: Backend['setAiKey'] = (provider, key) => this.bridge.setAiKey(provider, key);
+  summarizeRun: Backend['summarizeRun'] = (id) => this.bridge.summarizeRun(id);
   onRunsUpdate: Backend['onRunsUpdate'] = (cb) => this.bridge.onRunsUpdate(cb);
   onRunDetail: Backend['onRunDetail'] = (cb) => this.bridge.onRunDetail(cb);
   onPower: Backend['onPower'] = (cb) => this.bridge.onPower(cb);

@@ -418,6 +418,11 @@ describe('RunStore', () => {
     expect(updates.at(-1)!.upserts[0].title).toContain(key);
     expect(details.at(-1)).toContain(key);
     expect((await store.getDetail(id))!.events[0].text).toContain(key);
+    // Text that leaves the app (AI summaries) is masked whatever the display setting.
+    const leaving = await store.maskedDetail(id, 5);
+    expect(leaving!.events[0].text).not.toContain(key);
+    expect(leaving!.summary.title).not.toContain(key);
+    expect((await store.getDetail(id))!.events[0].text).toContain(key);
   });
 
   it('turns an adapter that throws into an unreadable run without stopping the others', async () => {

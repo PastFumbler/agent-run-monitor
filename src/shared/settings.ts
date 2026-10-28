@@ -2,6 +2,7 @@
 // normalizeSettings() is the only way settings come in from disk or IPC: anything unknown or
 // invalid falls back to its default, so a damaged settings file never stops the app.
 
+import { AI_PROVIDERS, cleanModelName, type AiProvider } from './ai';
 import { normalizeFolders, type RunFolder } from './folders';
 import { AGENT_IDS, type AgentId } from './schema';
 
@@ -61,6 +62,14 @@ export interface Settings {
   historyDays: number;
   maskSecrets: boolean;
   checkForUpdates: boolean;
+  /**
+   * Optional AI summaries in Overview (off by default). When on, main sends the masked content of the
+   * run being viewed to `aiProvider`. Changing the provider turns this off until the user confirms again.
+   */
+  aiSummaries: boolean;
+  aiProvider: AiProvider;
+  /** The model to ask; '' means the provider's default (DEFAULT_MODELS in src/shared/ai.ts). */
+  aiModel: string;
   pinned: string[];
   layouts: SavedLayout[];
   /** The user's run folders, in creation order (see src/shared/folders.ts). */
@@ -98,6 +107,9 @@ export function defaultSettings(): Settings {
     historyDays: 14,
     maskSecrets: true,
     checkForUpdates: false,
+    aiSummaries: false,
+    aiProvider: 'anthropic',
+    aiModel: '',
     pinned: [],
     layouts: [],
     folders: [],
@@ -155,9 +167,22 @@ export function normalizeSettings(raw: unknown): Settings {
     historyDays: int(raw.historyDays, d.historyDays, 0, 3650),
     maskSecrets: bool(raw.maskSecrets, d.maskSecrets),
     checkForUpdates: bool(raw.checkForUpdates, d.checkForUpdates),
+    aiSummaries: bool(raw.aiSummaries, d.aiSummaries),
+    aiProvider: pick(raw.aiProvider, AI_PROVIDERS, d.aiProvider),
+    aiModel: cleanModelName(raw.aiModel),
     pinned: strings(raw.pinned, 500),
     layouts,
     folders,
     runFolders,
   };
+}
+
+/**
+ * AI summaries send run content to one provider the user agreed to. A change of provider turns them
+ * off unless the same change turns them on (the user confirmed the new provider). Applied by both
+ * backends after merging a patch.
+ */
+export function guardAiProvider(prev: Settings, next: Settings, patch: Partial<Settings>): Settings {
+  if (next.aiProvider !== prev.aiProvider && patch.aiSummaries !== true) return { ...next, aiSummaries: false };
+  return next;
 }

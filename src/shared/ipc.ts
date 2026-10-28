@@ -2,6 +2,7 @@
 // implemented over Electron IPC (preload exposes window.armBackend); in tests, the browser demo
 // and screenshot scripts it is the FixtureBackend. The renderer must not depend on anything else.
 
+import type { AiProvider, AiStatus, AiSummaryResult } from './ai';
 import type { AgentId, RunDetail, RunSummary, SourceStatus } from './schema';
 import type { FolderOp, FolderResult } from './folders';
 import type { Settings } from './settings';
@@ -81,6 +82,15 @@ export interface Backend {
   revealSource(id: string): Promise<void>;
   getPower(): Promise<PowerState>;
   checkForUpdate(): Promise<UpdateInfo>;
+  /** Which providers have an API key saved (never the key itself), and whether storage is encrypted. */
+  aiStatus(): Promise<AiStatus>;
+  /** Saves the API key for a provider in main (null removes it). The key never comes back. */
+  setAiKey(provider: AiProvider, key: string | null): Promise<AiStatus>;
+  /**
+   * The AI summary of a run, asked of the chosen provider from main with masked run text, or a saved
+   * one for the same run content. Only when AI summaries are on; failures come back as `error`.
+   */
+  summarizeRun(id: string): Promise<AiSummaryResult>;
 
   onRunsUpdate(cb: (u: RunsUpdate) => void): Unsubscribe;
   /** Detail for a run the renderer has subscribed to changed. */
@@ -117,6 +127,9 @@ export const IPC = {
   revealSource: 'arm:revealSource',
   getPower: 'arm:getPower',
   checkForUpdate: 'arm:checkForUpdate',
+  aiStatus: 'arm:aiStatus',
+  setAiKey: 'arm:setAiKey',
+  summarizeRun: 'arm:summarizeRun',
   watchRuns: 'arm:watchRuns',
   setUpdateInterval: 'arm:setUpdateInterval',
   setWatchPriority: 'arm:setWatchPriority',
