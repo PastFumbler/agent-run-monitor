@@ -36,6 +36,11 @@ export interface Settings {
   /** How often live runs are re-checked, in milliseconds. */
   refreshMs: number;
   defaultView: RunView;
+  /**
+   * Sidebar Recent order. On: by last update (runs with new activity move up). Off: fixed; a newly
+   * opened run goes on top and the others keep their places. Opening a run never reorders either way.
+   */
+  moveUpdatedToTop: boolean;
   /** Tiles per multiviewer page, 1-12. */
   gridTileLimit: number;
   notifyOnFinish: boolean;
@@ -74,6 +79,7 @@ export function defaultSettings(): Settings {
     projectRoots: [],
     refreshMs: 2000,
     defaultView: 'activity',
+    moveUpdatedToTop: true,
     gridTileLimit: 12,
     notifyOnFinish: true,
     notifyOnFailure: true,
@@ -130,6 +136,7 @@ export function normalizeSettings(raw: unknown): Settings {
     projectRoots: strings(raw.projectRoots, 50),
     refreshMs: int(raw.refreshMs, d.refreshMs, 500, 60000),
     defaultView: pick(raw.defaultView, RUN_VIEWS, d.defaultView),
+    moveUpdatedToTop: bool(raw.moveUpdatedToTop, d.moveUpdatedToTop),
     gridTileLimit: int(raw.gridTileLimit, d.gridTileLimit, 1, 12),
     notifyOnFinish: bool(raw.notifyOnFinish, d.notifyOnFinish),
     notifyOnFailure: bool(raw.notifyOnFailure, d.notifyOnFailure),

@@ -1,7 +1,9 @@
 // Derived lists: the filtered run list, its sections, and the navigation order (←/→, j/k).
 // Sections: Pinned, Recent, Today, Yesterday, Earlier. Recent repeats runs that also appear in
-// their day section; navigation follows Pinned + day sections only, so opening a run (which moves
-// it to the top of Recent) never reshuffles the order you are stepping through.
+// their day section; navigation follows Pinned + day sections only, so Recent changing never
+// reshuffles the order you are stepping through. Opening a run never reorders Recent: it shows the
+// last few runs opened, by last update ("Move updated runs to top", the default) or in a fixed order
+// where a newly opened run goes on top.
 
 import { useMemo } from 'react';
 import type { AgentId, RunStatus, RunSummary } from '@shared/schema';
@@ -36,15 +38,28 @@ export function filterRuns(runs: RunSummary[], f: Filters, now: number): RunSumm
   );
 }
 
-export function buildSections(filtered: RunSummary[], pinned: string[], recent: string[], now: number): Section[] {
+const newestFirst = (a: RunSummary, b: RunSummary) => b.updatedAt - a.updatedAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+/**
+ * `recent` is the store's list (newest addition first). The last RECENT_SHOWN opened runs are shown;
+ * with `moveUpdatedToTop` they are ordered by updatedAt, otherwise they keep the stored order.
+ */
+export function buildSections(
+  filtered: RunSummary[],
+  pinned: string[],
+  recent: string[],
+  now: number,
+  moveUpdatedToTop = true,
+): Section[] {
   const byId = new Map(filtered.map((r) => [r.id, r]));
   const pinSet = new Set(pinned);
   const pinnedRuns = pinned.map((id) => byId.get(id)).filter((r): r is RunSummary => !!r);
-  const recentRuns = recent
+  const recentShown = recent
     .filter((id) => !pinSet.has(id))
     .map((id) => byId.get(id))
     .filter((r): r is RunSummary => !!r)
     .slice(0, RECENT_SHOWN);
+  const recentRuns = moveUpdatedToTop ? recentShown.sort(newestFirst) : recentShown;
   const days: Record<'today' | 'yesterday' | 'earlier', RunSummary[]> = { today: [], yesterday: [], earlier: [] };
   for (const r of filtered) if (!pinSet.has(r.id)) days[dayBucket(r.updatedAt, now)].push(r);
   const out: Section[] = [
@@ -84,10 +99,11 @@ export function useRunListModel(now: number): RunListModel {
   const filters = useStore((s) => s.filters);
   const pinned = useStore((s) => s.settings.pinned);
   const recent = useStore((s) => s.recent);
+  const moveUpdatedToTop = useStore((s) => s.settings.moveUpdatedToTop);
   return useMemo(() => {
     const all = order.map((id) => runs[id]).filter(Boolean);
     const filtered = filterRuns(all, filters, now);
-    const sections = buildSections(filtered, pinned, recent, now);
+    const sections = buildSections(filtered, pinned, recent, now, moveUpdatedToTop);
     return {
       all,
       filtered,
@@ -96,5 +112,5 @@ export function useRunListModel(now: number): RunListModel {
       agentCounts: countBy(all, (r) => r.agent),
       statusCounts: countBy(all, (r) => r.status),
     };
-  }, [runs, order, filters, pinned, recent, now]);
+  }, [runs, order, filters, pinned, recent, moveUpdatedToTop, now]);
 }

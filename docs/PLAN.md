@@ -214,7 +214,7 @@ Goose (`sessions/sessions.db`, source-verified) and Crush (per-project `.crush/c
 
 ### 5.1 Layout
 
-- Left: the **run list** with search, filter chips (agent, status), pinned runs, recent runs, and everything else grouped by day. Uses React Bits Animated List for insertions (reduced to a plain fade, or nothing, under the motion policy).
+- Left: the **run list** with search, filter chips (agent, status), pinned runs, recent runs (the last 5 opened; opening a run never reorders them; ordered by last update, or fixed with new ones on top when the `moveUpdatedToTop` setting is off), and everything else grouped by day. Uses React Bits Animated List for insertions (reduced to a plain fade, or nothing, under the motion policy).
 - Centre: the **run view**: header with Status Mark, title, agent, project, previous/next arrows and a view switcher (React Bits Rubber Segment): Activity, Overview, Files, Tools, Timeline.
 - The **multiviewer** replaces the centre when two or more runs are selected.
 - **Dashboard** (route `dashboard`, the home screen the app opens on; the sidebar stays): one section per `RunStatus` in schema order, each with its 3 most recently updated runs (a calm line when empty) and "See all (n)", which calls `showAllRuns({ statuses: [status], folder: 'all' })`. Agent chips at the top (`homeAgents` in the store, its own filter) apply to every section; "See all" counts every agent because All runs has no agent filter. Clicking a run opens it in the run view. The run view opens the most recent run only once it is shown, so nothing is opened or added to Recent on start. Opened from the sidebar, the palette or `g` then `d`; `goBack()` returns to it from settings and All runs.

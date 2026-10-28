@@ -274,7 +274,7 @@ The left side lists your runs, newest first.
 
 - **Search** with the box at the top (press `/` to jump to it). Words that name an agent, a status or a time become filters. For example `codex failed yesterday` finds Codex runs that failed yesterday, and `weather stuck` finds stuck runs in a project called weather-api. Time words: `today`, `yesterday`, `last hour`, `this week`, `last week`.
 - **Filter chips** under the search box filter by status and by agent. "Clear filters" resets them.
-- **Sections.** *Pinned* runs stay at the top (pin with `p` or the pin button). *Recent* shows the last 5 runs you opened. Then *Today*, *Yesterday* and *Earlier*.
+- **Sections.** *Pinned* runs stay at the top (pin with `p` or the pin button). *Recent* shows the last 5 runs you opened; opening one never moves it. With **Move updated runs to top** (Settings > Runs & refresh, on by default) Recent is ordered by last update; with it off, Recent keeps its order and a newly opened run appears at the top. Then *Today*, *Yesterday* and *Earlier*.
 - **Statuses.** Every status has its own shape and a word, so colour is never the only signal.
 
 | Status | Meaning |

@@ -66,6 +66,7 @@ export interface AppState {
   anchorId: string | null;
   /** Runs picked for the multiviewer, in pick order. */
   multi: string[];
+  /** Recently opened runs, newest addition first (re-opening a run does not move it). */
   recent: string[];
   view: RunView;
   route: Route;
@@ -217,8 +218,11 @@ export const useStore = create<AppState>()((set, get) => ({
       set({ currentId: null });
       return;
     }
-    const recent = [id, ...get().recent.filter((x) => x !== id)].slice(0, RECENT_MAX);
-    saveRecent(recent);
+    // Opening a run never reorders Recent: a run already there keeps its place; only a newly opened
+    // run goes on top (and the oldest addition drops off). How Recent is shown is up to selectors.ts.
+    const cur = get().recent;
+    const recent = cur.includes(id) ? cur : [id, ...cur].slice(0, RECENT_MAX);
+    if (recent !== cur) saveRecent(recent);
     set({ currentId: id, cursorId: id, anchorId: id, recent, route: get().route === 'run' ? 'run' : get().route });
   },
   setCursor(id) {

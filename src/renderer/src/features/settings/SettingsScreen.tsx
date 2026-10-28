@@ -371,6 +371,13 @@ export function SettingsScreen() {
                   ))}
                 </select>
               </div>
+              <SwitchRow
+                label="Move updated runs to top"
+                description="In Recent, runs with new activity move up. When off, Recent keeps its order and a newly opened run appears at the top. Opening a run never moves it."
+                checked={s.moveUpdatedToTop}
+                onChange={(v) => set({ moveUpdatedToTop: v })}
+                testId="move-updated-to-top"
+              />
             </div>
           </Section>
 
