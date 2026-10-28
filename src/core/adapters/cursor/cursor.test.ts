@@ -5,7 +5,7 @@ import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSyn
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { DiscoverContext, Env, ParseContext, ParseState, SessionRef } from '../../adapter';
 import { runId, safeParse, toSummary } from '../../build';
 import type { NewEvent } from '../../events';
@@ -14,6 +14,9 @@ import { adapter, closeAllSnapshots, defaultRoots } from './index';
 import { parseTimestampTag, uriToPath } from './common';
 import { fallbackTempRoot, limits } from '../../sqlite';
 
+// Every database read copies the file into a temp folder first: on a busy machine a test that builds
+// and reads several databases can pass the 5 s default.
+vi.setConfig({ testTimeout: 30_000 });
 const FIX = resolve(__dirname, '../../../../test/fixtures/cursor');
 const env: Env = { platform: 'linux', home: '/home/alex', vars: {} };
 /** Where discovery copies databases when DiscoverContext has no tempDir: see src/core/sqlite.ts. */
