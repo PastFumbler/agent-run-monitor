@@ -42,6 +42,7 @@ test('zoom buttons, + / - / 0 keys and Fit to run', async ({ page }) => {
   let s = await scrollOf(scroller(page));
   expect(s.width).toBeLessThanOrEqual(s.client + 1);
   const whole = await readableTicks(page);
+  const fromWhole = (await page.getByTestId('timeline-from').textContent()) ?? '';
 
   await page.getByRole('button', { name: 'Zoom in' }).click();
   await expect(status).toHaveText('Zoom 2×');
@@ -65,6 +66,8 @@ test('zoom buttons, + / - / 0 keys and Fit to run', async ({ page }) => {
   const close = await readableTicks(page);
   expect(close.join(' ')).toMatch(/\d{1,2}:\d{2}:\d{2}/);
   expect(close).not.toEqual(whole);
+  // The axis names the visible part, not the run's start (a multi-day run keeps its date context).
+  await expect(page.getByTestId('timeline-from')).not.toHaveText(fromWhole);
 
   await page.getByTestId('timeline-fit').click();
   await expect(status).toHaveText('Whole run');

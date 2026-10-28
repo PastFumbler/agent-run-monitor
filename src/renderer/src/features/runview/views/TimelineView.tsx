@@ -274,9 +274,10 @@ export function TimelineView({ detail, compact }: RunViewProps) {
         <span className="muted timeline__hint">{zoomed ? 'Drag or scroll sideways to pan' : `${shortcutText('timelineWheel')} to zoom at the pointer`}</span>
       </div>
       <div className="timeline__axis" aria-hidden="true">
-        <span>{formatTime(start, clock, now)}</span>
+        {/* Zoomed: the ends of the visible part, so a multi-day run still shows which day this is. */}
+        <span data-testid="timeline-from">{formatTime(zoomed ? from : start, clock, now)}</span>
         <span>{zoomed ? `Showing ${formatDuration(to - from)} of ${formatDuration(span)}` : formatDuration(span)}</span>
-        <span>{live ? 'now' : formatTime(end, clock, now)}</span>
+        <span>{zoomed ? formatTime(to, clock, now) : live ? 'now' : formatTime(end, clock, now)}</span>
       </div>
       <div
         ref={scrollRef}
