@@ -174,7 +174,10 @@ function LookStep({ headingRef }: { headingRef: HeadingRef }) {
       </h1>
       <p className="wizard__lead">Pick a theme; the whole app changes as you choose. Use the arrow keys to try them one by one.</p>
       <div className="card setting-group">
-        <ThemePicker value={s.theme} onChange={(theme) => void updateSettings({ theme })} />
+        <ThemePicker
+          value={s.useCustomTheme && s.customTheme ? 'custom' : s.theme}
+          onChange={(theme) => void updateSettings({ theme, useCustomTheme: false })}
+        />
       </div>
       <div className="card setting-group">
         <SynonymsSwitch checked={s.synonyms} />

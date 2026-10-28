@@ -280,7 +280,7 @@ The left side lists your runs, newest first.
 
 - **Search** with the box at the top (press `/` to jump to it). Words that name an agent, a status or a time become filters. For example `codex failed yesterday` finds Codex runs that failed yesterday, and `weather stuck` finds stuck runs in a project called weather-api. Time words: `today`, `yesterday`, `last hour`, `this week`, `last week`.
 - **Filter chips** under the search box filter by status and by agent. "Clear filters" resets them.
-- **Sections.** *Pinned* runs stay at the top (pin with `p` or the pin button). *Recent* shows the last 5 runs you opened; opening one never moves it. With **Move updated runs to top** (Settings > Runs & refresh, on by default) Recent is ordered by last update; with it off, Recent keeps its order and a newly opened run appears at the top. Then *Today*, *Yesterday* and *Earlier*.
+- **Sections.** *Pinned* runs stay at the top (pin with `p` or the pin button). *Recent* shows the last 5 runs you opened; opening one never moves it. With **Move updated runs to top** (Settings > Customisation, on by default) Recent is ordered by last update; with it off, Recent keeps its order and a newly opened run appears at the top. Then *Today*, *Yesterday* and *Earlier*.
 - **Statuses.** Every status has its own shape and a word, so colour is never the only signal.
 
 | Status | Meaning |
@@ -382,7 +382,11 @@ Open with `Ctrl+,` (`⌘,` on a Mac) or the gear button. Changes apply straight 
 - **Runs & refresh**: how often live runs are checked (default every 2 seconds), how far back to show runs (default 2 weeks), the default run view and the tiles per multiviewer page.
 - **Folders**: create, rename and delete folders for grouping runs by project or client. Folders live in the app's own settings, never in an agent's files; deleting a folder returns its runs to Unfiled and never deletes a run.
 - **Notifications**: a desktop notification when a run finishes, and when one fails or gets stuck.
-- **Appearance**: six themes (Paper, Sage and Dawn are light; Dusk, Moss and Harbor are dark), text size, density and time format.
+- **Appearance**: six themes (Paper, Sage and Dawn are light; Dusk, Moss and Harbor are dark), your custom theme if you made one, text size, density and time format.
+- **Customisation**:
+  - **Display**: *Default* is the full app. *Simple* shows only running runs, one large plain line each saying what it's doing, so you can read it from across the room. `Esc` or `Ctrl+,` opens Settings.
+  - **Move updated runs to top**: how Recent is ordered (see the run list above).
+  - **Custom theme**: **Customise…** (here or next to the themes) starts from the theme in use and lets you pick the background, surface, text, accent and status colours. A live check names every colour pair that fails WCAG AA contrast and any status colours too alike to tell apart. You can save a failing theme, with a visible warning; it is kept as your custom theme, never as one of the presets.
 - **Motion & performance**: see below.
 - **Fun**: see below.
 - **Privacy**: secret masking and the update check.

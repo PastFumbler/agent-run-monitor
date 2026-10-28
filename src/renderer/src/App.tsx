@@ -4,6 +4,7 @@
 
 import { useEffect, useRef } from 'react';
 import { Settings02Icon, ChartColumnIcon, CommandIcon, DashboardSquare01Icon, ListViewIcon } from '@hugeicons/core-free-icons';
+import type { CustomTheme } from '@shared/settings';
 import { getBackend } from './backend';
 import { Icon } from './components/Icon';
 import { CommandPalette } from './features/palette/CommandPalette';
@@ -22,6 +23,8 @@ import { goBack, openRunWithDefaultView, showAllRuns, showDashboard, showUsage }
 import { MOD, shortcutText } from './features/shortcuts/shortcuts';
 import { openStartupLayoutWhenReady } from './features/multiview/layouts';
 import { OpenMultiviewButton } from './features/multiview/OpenMultiviewButton';
+import { simpleShown } from './features/simple/simple';
+import { SimpleBoard } from './features/simple/SimpleBoard';
 
 function useBoot() {
   useEffect(() => {
@@ -71,21 +74,42 @@ function Shell() {
   const runsLoaded = useStore((s) => s.runsLoaded);
   const setRoute = useStore((s) => s.setRoute);
   const setOverlay = useStore((s) => s.setOverlay);
+  const simple = useStore((s) => simpleShown(s.settings.displayTier, s.route));
   const navRef = useRef(model.nav);
   navRef.current = model.nav;
   useShortcuts(() => navRef.current);
 
   // On the run view, open the most recent run when none is open (and whenever the open run disappears).
   // The app starts on the dashboard, so nothing is opened (or counted as recent) until the run view shows.
+  // The Simple display tier shows no run view, so it opens nothing either.
   useEffect(() => {
-    if (!runsLoaded || route !== 'run') return;
+    if (!runsLoaded || route !== 'run' || simple) return;
     const st = useStore.getState();
     if (currentId && st.runs[currentId]) return;
     const newest = st.order.find((id) => model.nav.includes(id));
     const first = st.recent.find((id) => st.runs[id]) ?? newest ?? model.nav[0] ?? null;
     if (first) st.openRun(first);
     else if (currentId) st.openRun(null);
-  }, [runsLoaded, route, currentId, model.nav]);
+  }, [runsLoaded, route, currentId, model.nav, simple]);
+
+  const overlays = (
+    <>
+      {overlay === 'palette' ? <CommandPalette /> : null}
+      {overlay === 'cheatsheet' ? <CheatSheet /> : null}
+    </>
+  );
+
+  // Simple display tier: running runs only, nothing else on screen (Settings and the first-run guide still show as usual).
+  if (simple) {
+    return (
+      <div className="app" data-route={route} data-tier="simple">
+        <main className="main" id="main" tabIndex={-1}>
+          <SimpleBoard />
+        </main>
+        {overlays}
+      </div>
+    );
+  }
 
   return (
     <div className="app" data-route={route}>
@@ -169,8 +193,7 @@ function Shell() {
         <RouteView nav={model.nav} />
       </main>
       <StatusBar all={model.all} />
-      {overlay === 'palette' ? <CommandPalette /> : null}
-      {overlay === 'cheatsheet' ? <CheatSheet /> : null}
+      {overlays}
     </div>
   );
 }
@@ -180,7 +203,12 @@ export function App() {
   const theme = useStore((s) => s.settings.theme);
   const textSize = useStore((s) => s.settings.textSize);
   const density = useStore((s) => s.settings.density);
-  useEffect(() => applyLook({ theme, textSize, density }), [theme, textSize, density]);
+  // The custom theme (when in use) as a string, so a re-sent but unchanged theme doesn't re-apply.
+  const custom = useStore((s) => (s.settings.useCustomTheme && s.settings.customTheme ? JSON.stringify(s.settings.customTheme) : ''));
+  useEffect(
+    () => applyLook({ theme, textSize, density, useCustomTheme: !!custom, customTheme: custom ? (JSON.parse(custom) as CustomTheme) : null }),
+    [theme, textSize, density, custom],
+  );
   return (
     <MotionPolicyProvider>
       <Shell />

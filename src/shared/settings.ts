@@ -4,7 +4,7 @@
 
 import { AI_PROVIDERS, cleanModelName, type AiProvider } from './ai';
 import { normalizeFolders, type RunFolder } from './folders';
-import { AGENT_IDS, type AgentId } from './schema';
+import { AGENT_IDS, RUN_STATUSES, type AgentId, type RunStatus } from './schema';
 
 export const THEME_IDS = ['paper', 'sage', 'dawn', 'dusk', 'moss', 'harbor'] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
@@ -19,6 +19,22 @@ export type TriState = 'auto' | 'on' | 'off';
 export type TimeFormat = '24h' | '12h' | 'relative';
 export type TextSize = 'small' | 'medium' | 'large';
 export type Density = 'compact' | 'comfortable';
+/** Default: the full app. Simple: only running runs, one large plain line each (readable from across the room). */
+export const DISPLAY_TIERS = ['default', 'simple'] as const;
+export type DisplayTier = (typeof DISPLAY_TIERS)[number];
+
+/**
+ * The colours a user picks for their custom theme (plain #rrggbb). Every other theme token (cards,
+ * hover, muted text, borders, focus, status text...) is worked out from these by the renderer
+ * (src/renderer/src/theme/custom.ts). A custom theme is never one of the presets in THEME_IDS.
+ */
+export interface CustomTheme {
+  bg: string;
+  surface: string;
+  text: string;
+  accent: string;
+  status: Record<RunStatus, string>;
+}
 
 export interface SourceSettings {
   enabled: boolean;
@@ -53,7 +69,13 @@ export interface Settings {
   lowGpu: TriState;
   synonyms: boolean;
   fakeProgress: boolean;
+  /** The preset in use, and the one a custom theme falls back to. */
   theme: ThemeId;
+  /** The saved custom theme, or null when there is none. */
+  customTheme: CustomTheme | null;
+  /** Use customTheme instead of the preset. Only ever true while a custom theme is saved. */
+  useCustomTheme: boolean;
+  displayTier: DisplayTier;
   textSize: TextSize;
   density: Density;
   timeFormat: TimeFormat;
@@ -100,6 +122,9 @@ export function defaultSettings(): Settings {
     synonyms: true,
     fakeProgress: true,
     theme: 'paper',
+    customTheme: null,
+    useCustomTheme: false,
+    displayTier: 'default',
     textSize: 'medium',
     density: 'comfortable',
     timeFormat: '24h',
@@ -123,6 +148,24 @@ const pick = <T extends string>(v: unknown, allowed: readonly T[], d: T): T =>
 const bool = (v: unknown, d: boolean) => (typeof v === 'boolean' ? v : d);
 const int = (v: unknown, d: number, min: number, max: number) =>
   typeof v === 'number' && Number.isFinite(v) ? Math.min(max, Math.max(min, Math.round(v))) : d;
+const HEX = /^#[0-9a-f]{6}$/i;
+const hex = (v: unknown): string | null => (typeof v === 'string' && HEX.test(v) ? v.toLowerCase() : null);
+
+/** A stored custom theme, or null unless every colour is a plain #rrggbb. */
+export function normalizeCustomTheme(raw: unknown): CustomTheme | null {
+  if (!isObj(raw) || !isObj(raw.status)) return null;
+  const rawStatus = raw.status;
+  const base = { bg: hex(raw.bg), surface: hex(raw.surface), text: hex(raw.text), accent: hex(raw.accent) };
+  if (!base.bg || !base.surface || !base.text || !base.accent) return null;
+  const status = {} as Record<RunStatus, string>;
+  for (const st of RUN_STATUSES) {
+    const c = hex(rawStatus[st]);
+    if (!c) return null;
+    status[st] = c;
+  }
+  return { bg: base.bg, surface: base.surface, text: base.text, accent: base.accent, status };
+}
+
 const strings = (v: unknown, max = 200) =>
   Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string' && s.length > 0 && s.length < 4096).slice(0, max) : [];
 
@@ -144,6 +187,7 @@ export function normalizeSettings(raw: unknown): Settings {
         .slice(0, 50)
     : [];
   const { folders, runFolders } = normalizeFolders(raw.folders, raw.runFolders);
+  const customTheme = normalizeCustomTheme(raw.customTheme);
   return {
     version: 1,
     firstRunComplete: bool(raw.firstRunComplete, false),
@@ -160,6 +204,9 @@ export function normalizeSettings(raw: unknown): Settings {
     synonyms: bool(raw.synonyms, d.synonyms),
     fakeProgress: bool(raw.fakeProgress, d.fakeProgress),
     theme: pick(raw.theme, THEME_IDS, d.theme),
+    customTheme,
+    useCustomTheme: customTheme !== null && bool(raw.useCustomTheme, d.useCustomTheme),
+    displayTier: pick(raw.displayTier, DISPLAY_TIERS, d.displayTier),
     textSize: pick(raw.textSize, ['small', 'medium', 'large'] as const, d.textSize),
     density: pick(raw.density, ['compact', 'comfortable'] as const, d.density),
     timeFormat: pick(raw.timeFormat, ['24h', '12h', 'relative'] as const, d.timeFormat),

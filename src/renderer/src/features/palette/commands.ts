@@ -68,6 +68,12 @@ export function getCommands(): Command[] {
       keywords: 'fake progress bar fun eta toggle',
       run: () => void updateSettings({ fakeProgress: !s.fakeProgress }),
     },
+    {
+      id: 'toggle-display-tier',
+      label: s.displayTier === 'simple' ? 'Display: show the full app' : 'Display: Simple (running runs only, large text)',
+      keywords: 'display tier simple default minimal large across the room wall running customisation customization',
+      run: () => void updateSettings({ displayTier: s.displayTier === 'simple' ? 'default' : 'simple' }),
+    },
     { id: 'clear-filters', label: 'Clear run filters', keywords: 'reset filters search chips', run: () => st.clearFilters() },
     {
       id: 'focus-search',
@@ -84,9 +90,17 @@ export function getCommands(): Command[] {
     const t = THEMES[id];
     cmds.push({
       id: `theme-${id}`,
-      label: `Switch theme: ${t.name}${s.theme === id ? ' (current)' : ''}`,
+      label: `Switch theme: ${t.name}${s.theme === id && !s.useCustomTheme ? ' (current)' : ''}`,
       keywords: `theme colour color appearance ${t.scheme} ${t.name.toLowerCase()} ${t.blurb.toLowerCase()}`,
-      run: () => void updateSettings({ theme: id }),
+      run: () => void updateSettings({ theme: id, useCustomTheme: false }),
+    });
+  }
+  if (s.customTheme) {
+    cmds.push({
+      id: 'theme-custom',
+      label: `Switch theme: Custom${s.useCustomTheme ? ' (current)' : ''}`,
+      keywords: 'theme colour color appearance custom my own',
+      run: () => void updateSettings({ useCustomTheme: true }),
     });
   }
   return cmds;

@@ -3,6 +3,7 @@
 
 import { useEffect, useRef } from 'react';
 import { viewForKey } from '../runview/views/available';
+import { simpleShown } from '../simple/simple';
 import { goBack, openRunWithDefaultView, showAllRuns, showDashboard, showUsage, togglePin } from '../../store/actions';
 import { useStore } from '../../store/store';
 
@@ -34,10 +35,15 @@ export function useShortcuts(getNav: () => string[]): void {
       }
       // A focused control (view switcher, list) already handled this key.
       if (e.defaultPrevented) return;
+      // The Simple display tier shows only the board: Esc opens Settings, Ctrl/Cmd+, and Ctrl/Cmd+K work, other keys do nothing.
+      const simple = simpleShown(st.settings.displayTier, st.route);
       if (key === 'Escape') {
         if (st.overlay !== 'none') {
           e.preventDefault();
           st.setOverlay('none');
+        } else if (simple) {
+          e.preventDefault();
+          st.setRoute('settings');
         } else if (st.maximizedTile) {
           st.toggleMaximizeFocused();
         } else if (st.route === 'settings' || st.route === 'runs' || st.route === 'usage') {
@@ -51,7 +57,7 @@ export function useShortcuts(getNav: () => string[]): void {
         st.setRoute('settings');
         return;
       }
-      if (mod) return;
+      if (mod || simple) return;
 
       // "g then m" opens the multiviewer, "g then a" the run list viewer, "g then d" the dashboard, "g then u" usage.
       if (pendingG.current && Date.now() - pendingG.current < 1200) {

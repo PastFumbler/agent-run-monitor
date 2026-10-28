@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunDetail, RunEvent, RunStatus } from './schema';
-import { filesPhrase, localSummary } from './summary';
+import { doingSentence, filesPhrase, localSummary } from './summary';
 
 let seq = 0;
 const ev = (e: Partial<RunEvent> & Pick<RunEvent, 'kind'>): RunEvent => ({ seq: seq++, text: '', ...e });
@@ -86,6 +86,20 @@ describe('localSummary', () => {
 
   it('is one sentence for an unreadable run', () => {
     expect(localSummary(detail({ status: 'unreadable' }))).toBe("This run couldn't be read.");
+  });
+});
+
+describe('doingSentence', () => {
+  it('is the first sentence of the summary', () => {
+    const d = detail({ status: 'running', currentTool: 'Edit', events: [bash(), edit('src/cli.ts')], edits: 1 });
+    expect(doingSentence(d.summary, d.events)).toBe('Working on “Add a --due flag to the add command”, now editing cli.ts.');
+    expect(localSummary(d).startsWith(doingSentence(d.summary, d.events))).toBe(true);
+  });
+
+  it('works from the summary alone', () => {
+    const d = detail({ status: 'running', currentTool: 'Bash' });
+    expect(doingSentence(d.summary)).toBe('Working on “Add a --due flag to the add command”, now using Bash.');
+    expect(doingSentence(detail({ status: 'running' }).summary)).toBe('Working on “Add a --due flag to the add command”.');
   });
 });
 

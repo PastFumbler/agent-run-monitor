@@ -255,7 +255,9 @@ Six soft presets, three light and three dark: Paper, Sage, Dawn (light); Dusk, M
 - UI tokens (borders of inputs, focus ring, status colours, icons) against surfaces: at least 3:1;
 - status colours within a theme are pairwise distinguishable (CIEDE2000 ΔE ≥ 15).
 
-A failing theme fails CI, so it cannot ship.
+A failing theme fails CI, so it cannot ship. The pairs and thresholds live in `src/renderer/src/theme/checks.ts`.
+
+**Custom theme** (Settings > Customisation): the user picks background, surface, text, accent and the seven status colours, starting from the theme in use; `theme/custom.ts` works out the other tokens and nudges derived text colours toward contrast. The editor runs the same checks live, names each failing pair and each pair of status colours under ΔE 15, and lets the user save a failing theme with a visible warning. It is stored in settings (`customTheme`, `useCustomTheme`), applied as inline CSS variables on `<html>` with `data-theme="custom"`, and never added to the presets, so the contrast test of the presets is unchanged.
 
 ### 5.6 Motion, low-GPU mode and the fun parts
 
@@ -274,7 +276,7 @@ Used deliberately, all from the free public repository (MIT + Commons Clause), n
 
 Stored as JSON in the Electron `userData` folder, validated on load (unknown or invalid values fall back to defaults, never crash):
 
-sources and custom paths (per adapter: on/off, extra roots), refresh rate, default run view, grid tile limit, notifications on finish and on failure, reduce motion (Auto / On / Off), low-GPU mode (Auto / On / Off), synonyms, fake progress bar, theme, text size, density, time format (12 h / 24 h / relative), start with the OS, how far back to show runs, mask likely secrets, check for updates (off), AI summaries (off; provider, model; the API key is not a setting: main keeps it separately), run folders.
+sources and custom paths (per adapter: on/off, extra roots), refresh rate, default run view, grid tile limit, notifications on finish and on failure, reduce motion (Auto / On / Off), low-GPU mode (Auto / On / Off), synonyms, fake progress bar, theme, custom theme (colours, and whether it is in use), display tier (Default / Simple: running runs only, one large line each), move updated runs to top, text size, density, time format (12 h / 24 h / relative), start with the OS, how far back to show runs, mask likely secrets, check for updates (off), AI summaries (off; provider, model; the API key is not a setting: main keeps it separately), run folders.
 
 Run folders are app-owned data in the same file: `folders` (app-generated id and name) and `runFolders` (run id to folder id; a run without an entry is unfiled). Changes go through one backend call, `editFolders` (create, rename, delete, move), which main applies with the pure `applyFolderOp` in `src/shared/folders.ts` one change at a time with other settings writes. Deleting a folder only removes its assignments; agent files are never written.
 

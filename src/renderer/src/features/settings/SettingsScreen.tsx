@@ -3,7 +3,7 @@
 // saved through updateSettings() (optimistic, then the backend's normalised result) and applies live:
 // the look via App's applyLook(), motion via the motion policy, sources via the backend's rescan.
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft02Icon, LinkSquare02Icon } from '@hugeicons/core-free-icons';
 import type { UpdateInfo } from '@shared/ipc';
 import { PROVIDER_NAMES } from '@shared/ai';
@@ -14,9 +14,11 @@ import { Icon } from '../../components/Icon';
 import { useMotionPolicy } from '../../motion/context';
 import { goBack, updateSettings } from '../../store/actions';
 import { useStore } from '../../store/store';
+import { checkCustomTheme, problemCount } from '../../theme/custom';
 import { MOD } from '../shortcuts/shortcuts';
 import { AiSection } from './AiSection';
 import { ChoiceGroup, SwitchRow, ThemePicker } from './controls';
+import { CustomThemeSection } from './CustomThemeSection';
 import { historyLabel, lowGpuStateText, reduceMotionStateText, refreshLabel, updateResultText } from './describe';
 import { FoldersSection } from './FoldersSection';
 import { stopAppShortcuts } from './keys';
@@ -28,6 +30,7 @@ export const SETTINGS_SECTIONS = [
   { id: 'folders', label: 'Folders' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'appearance', label: 'Appearance' },
+  { id: 'customisation', label: 'Customisation' },
   { id: 'motion', label: 'Motion & performance' },
   { id: 'fun', label: 'Fun' },
   { id: 'privacy', label: 'Privacy' },
@@ -285,6 +288,9 @@ export function SettingsScreen() {
     };
   }, []);
 
+  const [editingTheme, setEditingTheme] = useState(false);
+  const customProblems = useMemo(() => (s.customTheme ? problemCount(checkCustomTheme(s.customTheme)) : 0), [s.customTheme]);
+
   const jump = (id: SectionId) => {
     const sec = document.getElementById(`settings-${id}`);
     if (!sec) return;
@@ -292,6 +298,11 @@ export function SettingsScreen() {
     sec.scrollIntoView({ block: 'start', behavior: 'auto' });
     sec.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
     setActive(id);
+  };
+
+  const openCustomise = () => {
+    setEditingTheme(true);
+    jump('customisation');
   };
 
   return (
@@ -383,13 +394,6 @@ export function SettingsScreen() {
                   ))}
                 </select>
               </div>
-              <SwitchRow
-                label="Move updated runs to top"
-                description="In Recent, runs with new activity move up. When off, Recent keeps its order and a newly opened run appears at the top. Opening a run never moves it."
-                checked={s.moveUpdatedToTop}
-                onChange={(v) => set({ moveUpdatedToTop: v })}
-                testId="move-updated-to-top"
-              />
             </div>
           </Section>
 
@@ -416,7 +420,11 @@ export function SettingsScreen() {
 
           <Section id="appearance" title="Appearance">
             <div className="card setting-group">
-              <ThemePicker value={s.theme} onChange={(theme) => set({ theme })} />
+              <ThemePicker
+                value={s.useCustomTheme && s.customTheme ? 'custom' : s.theme}
+                onChange={(theme) => set({ theme, useCustomTheme: false })}
+                custom={{ colours: s.customTheme, problems: customProblems, onUse: () => set({ useCustomTheme: true }), onCustomise: openCustomise }}
+              />
             </div>
             <div className="card setting-group">
               <ChoiceGroup
@@ -453,6 +461,36 @@ export function SettingsScreen() {
                 onChange={(v) => set({ timeFormat: v })}
               />
             </div>
+          </Section>
+
+          <Section id="customisation" title="Customisation">
+            <div className="card setting-group">
+              <ChoiceGroup
+                legend="Display"
+                testId="display-tier"
+                description={
+                  <>
+                    Simple shows only running runs, one large plain line each saying what it's doing, readable from across the room.{' '}
+                    <span className="kbd">Esc</span> or <span className="kbd">{MOD}</span>
+                    <span className="kbd">,</span> brings you back here.
+                  </>
+                }
+                value={s.displayTier}
+                choices={[
+                  { value: 'default', label: 'Default: the full app', name: 'Default' },
+                  { value: 'simple', label: 'Simple: running runs only, in large text', name: 'Simple' },
+                ]}
+                onChange={(v) => set({ displayTier: v })}
+              />
+              <SwitchRow
+                label="Move updated runs to top"
+                description="In Recent, runs with new activity move up. When off, Recent keeps its order and a newly opened run appears at the top. Opening a run never moves it."
+                checked={s.moveUpdatedToTop}
+                onChange={(v) => set({ moveUpdatedToTop: v })}
+                testId="move-updated-to-top"
+              />
+            </div>
+            <CustomThemeSection s={s} editing={editingTheme} setEditing={setEditingTheme} />
           </Section>
 
           <MotionSection s={s} />

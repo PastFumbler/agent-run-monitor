@@ -2,7 +2,7 @@
 // data (its request, status, current or last tool, edits, files and commands). Pure, no network.
 // Counts of edits and files are run totals; commands are counted in the loaded events.
 
-import type { RunDetail, RunEvent, RunStatus } from './schema';
+import type { RunDetail, RunEvent, RunStatus, RunSummary } from './schema';
 
 const MAX_REQUEST = 90;
 
@@ -66,6 +66,19 @@ function firstSentence(status: RunStatus, request: string | undefined, now: stri
   }
 }
 
+/**
+ * One plain sentence: what the run is doing now ("Working on “…”, now editing cli.ts."). Works from
+ * the summary alone; the loaded events, when given, name the file or command behind the open tool.
+ * The Simple display tier shows this line for each running run.
+ */
+export function doingSentence(s: RunSummary, events: RunEvent[] = []): string {
+  if (s.status === 'unreadable') return firstSentence('unreadable', undefined, undefined);
+  let last: RunEvent | undefined;
+  for (let i = events.length - 1; i >= 0 && !last; i--) if (events[i].kind === 'tool_call') last = events[i];
+  const now = s.status === 'running' && s.currentTool ? (last && last.toolName === s.currentTool ? toolPhrase(last) : `using ${s.currentTool}`) : undefined;
+  return firstSentence(s.status, quoted(s.title), now);
+}
+
 /** One or two plain sentences describing what the run is doing or did. */
 export function localSummary(d: RunDetail): string {
   const s = d.summary;
@@ -73,8 +86,7 @@ export function localSummary(d: RunDetail): string {
   const calls = d.events.filter((e) => e.kind === 'tool_call');
   const last = calls[calls.length - 1];
   const live = s.status === 'running';
-  const now = live && s.currentTool ? (last && last.toolName === s.currentTool ? toolPhrase(last) : `using ${s.currentTool}`) : undefined;
-  const first = firstSentence(s.status, quoted(s.title), now);
+  const first = doingSentence(s, d.events);
 
   const edits = d.totalChanges;
   const files = d.files.map((f) => f.path);

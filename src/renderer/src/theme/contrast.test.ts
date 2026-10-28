@@ -1,42 +1,15 @@
 // Every theme must pass these checks; a failing theme fails CI and cannot ship (docs/PLAN.md 5.5).
+// The pairs and thresholds live in checks.ts, which the custom theme editor uses too.
 import { describe, expect, it } from 'vitest';
-import { RUN_STATUSES } from '@shared/schema';
 import { THEME_IDS } from '@shared/settings';
-import { contrast, deltaE2000, deltaE2000Lab } from './contrast';
-import { THEMES, type ThemeTokens } from './themes';
-
-const TEXT_MIN = 4.5;
-const UI_MIN = 3.0;
-const STATUS_DELTA_E_MIN = 15;
-
-type Check = { what: string; fg: string; bg: string; ratio: number; min: number };
-
-function checksFor(t: ThemeTokens): Check[] {
-  const surfaces: [string, string][] = [
-    ['bg', t.bg],
-    ['surface', t.surface],
-    ['raised', t.raised],
-  ];
-  // Text and status marks also sit on selected rows.
-  const textSurfaces: [string, string][] = [...surfaces, ['selected', t.selected], ['hover', t.hover]];
-  const out: Check[] = [];
-  const add = (what: string, fg: string, list: [string, string][], min: number) => {
-    for (const [name, bg] of list) out.push({ what: `${what} on ${name}`, fg, bg, ratio: contrast(fg, bg), min });
-  };
-  add('text', t.text, textSurfaces, TEXT_MIN);
-  add('text-muted', t.textMuted, textSurfaces, TEXT_MIN);
-  out.push({ what: 'accent-text on accent', fg: t.accentText, bg: t.accent, ratio: contrast(t.accentText, t.accent), min: TEXT_MIN });
-  for (const s of RUN_STATUSES) {
-    add(`status-${s}-text`, t.statusText[s], textSurfaces, TEXT_MIN);
-    add(`status-${s}`, t.status[s], [...surfaces, ['selected', t.selected]], UI_MIN);
-  }
-  add('border-strong', t.borderStrong, surfaces, UI_MIN);
-  add('focus', t.focus, [...surfaces, ['selected', t.selected]], UI_MIN);
-  add('accent', t.accent, surfaces, UI_MIN);
-  return out;
-}
+import { checksFor, closeStatusPairs, schemeOf, STATUS_DELTA_E_MIN, TEXT_MIN, UI_MIN } from './checks';
+import { contrast, deltaE2000Lab } from './contrast';
+import { THEMES } from './themes';
 
 describe('colour maths', () => {
+  it('holds themes to WCAG AA and a clear status difference', () => {
+    expect([TEXT_MIN, UI_MIN, STATUS_DELTA_E_MIN]).toEqual([4.5, 3, 15]);
+  });
   it('computes WCAG contrast', () => {
     expect(contrast('#000000', '#ffffff')).toBeCloseTo(21, 5);
     expect(contrast('#777777', '#ffffff')).toBeCloseTo(4.48, 2);
@@ -78,20 +51,10 @@ describe.each(THEME_IDS.map((id) => [id]))('theme %s', (id) => {
   });
 
   it('keeps every pair of status colours distinguishable (CIEDE2000 >= 15)', () => {
-    const failures: string[] = [];
-    for (let i = 0; i < RUN_STATUSES.length; i++) {
-      for (let j = i + 1; j < RUN_STATUSES.length; j++) {
-        const a = RUN_STATUSES[i];
-        const b = RUN_STATUSES[j];
-        const d = deltaE2000(theme.tokens.status[a], theme.tokens.status[b]);
-        if (d < STATUS_DELTA_E_MIN) failures.push(`${a}/${b}: ΔE ${d.toFixed(1)}`);
-      }
-    }
-    expect(failures).toEqual([]);
+    expect(closeStatusPairs(theme.tokens).map((p) => `${p.a}/${p.b}: ΔE ${p.deltaE.toFixed(1)}`)).toEqual([]);
   });
 
   it('has a light/dark scheme that matches its background', () => {
-    const darkBg = contrast(theme.tokens.bg, '#000000') < contrast(theme.tokens.bg, '#ffffff');
-    expect(theme.scheme).toBe(darkBg ? 'dark' : 'light');
+    expect(theme.scheme).toBe(schemeOf(theme.tokens.bg));
   });
 });

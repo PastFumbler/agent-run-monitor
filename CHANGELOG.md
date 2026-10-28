@@ -17,7 +17,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Timeline zoom**: zoom buttons, `+` / `-`, `Ctrl` + scroll at the pointer and "Fit to run" (`0`), with drag or sideways scroll to pan; the time axis stays readable from the whole run down to a few seconds. Works in multiviewer tiles too.
 - **Overview summary**: every run's Overview starts with one or two plain sentences on what it is doing or did, built on your computer. Optional AI summaries (Settings > AI summary, off by default) use your own Anthropic or OpenAI key, warn before anything is sent, mask secrets first and cache results so the same run content is never sent twice.
 - **Usage**: tokens per agent for Today, This week, This month or All time, split into input, output, cache read and cache write, plus every run in the range sortable by any of them. Data an agent didn't record says "Not reported"; nothing is estimated and no costs are shown. Open it from the sidebar, the command palette or `g` then `u`.
-- **Move updated runs to top** (Settings > Runs & refresh, on by default): the sidebar's Recent is ordered by last update; switch it off to keep Recent in a fixed order with newly opened runs on top.
+- **Move updated runs to top** (Settings > Customisation, on by default): the sidebar's Recent is ordered by last update; switch it off to keep Recent in a fixed order with newly opened runs on top.
+- **Customisation** settings: a **Simple** display that shows only running runs, one large line each saying what it's doing (readable from across the room; `Esc` opens Settings), and a **custom theme** that starts from the theme in use, with a live WCAG AA check naming every failing colour pair and any status colours too alike. A failing theme can still be saved, with a warning; it is never added to the presets.
 
 ### Fixed
 
