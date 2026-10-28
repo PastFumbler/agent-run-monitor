@@ -17,6 +17,22 @@ describe('demo data', () => {
     expect(runs.some((r) => r.summary.parentId)).toBe(true);
   });
 
+  it('has the hand-written screenshot run, still centring a button, with diffs that match their counts', () => {
+    const runs = buildDemo('demo', NOW);
+    const egg = runs.find((r) => r.summary.id === 'claude-code:ce17e4d1ff1c0de5')!;
+    expect(egg.summary).toMatchObject({ status: 'running', currentTool: 'Bash', hasReasoning: true });
+    expect(egg.summary.title).toMatch(/^center the login button/);
+    expect(egg.changes).toHaveLength(5);
+    for (const c of egg.changes) {
+      const lines = c.diff!.split('\n');
+      expect(lines.filter((l) => l.startsWith('+')).length, c.filePath).toBe(c.linesAdded);
+      expect(lines.filter((l) => l.startsWith('-')).length, c.filePath).toBe(c.linesRemoved);
+    }
+    // It replaces a generated run, so the counts the e2e tests rely on stay the same.
+    expect(runs.length).toBe(40);
+    expect(buildDemo('many', NOW).some((r) => r.summary.id === egg.summary.id)).toBe(false);
+  });
+
   it('is deterministic for the same seed and clock', () => {
     const a = buildDemo('demo', NOW).map((r) => [r.summary, r.events]);
     const b = buildDemo('demo', NOW).map((r) => [r.summary, r.events]);

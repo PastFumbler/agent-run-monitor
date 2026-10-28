@@ -669,8 +669,128 @@ export function buildDemo(scenario: Scenario, now: number, seed = 20261027): Dem
     const rng = root.fork(1000 + index);
     runs.push(makeRun(plan, rng, now, runs));
   });
+  // The screenshots' headline run takes the place of the first generated running run, so the run
+  // count and every status count stay the same (the anchors keep every agent in the demo).
+  if (scenario === 'demo') {
+    const i = runs.findIndex((r, k) => k >= ANCHORS.length && r.summary.status === 'running');
+    if (i >= 0) runs[i] = centerTheDiv(now);
+  }
   // Every status and agent shows up at least once in the demo (checked by the fixture tests).
   return runs;
+}
+
+/**
+ * A small easter egg for the screenshots: a Claude Code run three hours into centring a login
+ * button. Written by hand rather than drawn from the seed, so every word and diff is fixed.
+ */
+export function centerTheDiv(now: number): DemoRun {
+  const updatedAt = now - 15_000;
+  const startedAt = updatedAt - 190 * MIN;
+  const at = (min: number) => startedAt + min * MIN;
+  const project = 'portfolio-v7-final-FINAL';
+  const title = "center the login button. vertically too. please. it's been three days";
+  const summary: RunSummary = {
+    id: 'claude-code:ce17e4d1ff1c0de5',
+    agent: 'claude-code',
+    title,
+    projectName: project,
+    projectPath: `${HOME}/code/${project}`,
+    gitBranch: 'fix/center-the-div-attempt-14',
+    model: 'claude-opus-4-1',
+    startedAt,
+    updatedAt,
+    status: 'running',
+    statusDetail: 'Running Bash',
+    counts: { events: 0, messages: 0, toolCalls: 0, errors: 0, filesChanged: 0 },
+    sourcePath: `${HOME}/.claude/projects/-home-demo-code-${project}/c3e7e2d1-0d1f-4ace-b00c-5e71ec0ffee0.jsonl`,
+  };
+  const run: DemoRun = { summary, events: [], live: false, changes: [] };
+  // Usage like EventWriter.usageFor for Claude Code: a growing context, mostly read from the cache.
+  const push = (e: Omit<RunEvent, 'seq'>) => {
+    const ev: RunEvent = { seq: run.events.length, ...e };
+    if (e.kind === 'assistant' || e.kind === 'reasoning' || e.kind === 'tool_call') {
+      const context = 1800 + run.events.length * 260;
+      const input = Math.round(context * 0.08);
+      const cacheWrite = Math.round(context * 0.05);
+      ev.usage = { input, output: Math.ceil(e.text.length / 4) + 40, cacheRead: context - input - cacheWrite, cacheWrite };
+    }
+    run.events.push(ev);
+  };
+  let calls = 0;
+  /** A tool call and its result; with no `output` the call stays open (the run is still going). */
+  const tool = (min: number, toolName: string, toolKind: ToolKind, input: string, output?: string, edit?: { diff: string; added: number; removed: number }) => {
+    const toolCallId = `toolu_01CENTERTHEDIV${String(++calls).padStart(4, '0')}`;
+    const ts = at(min);
+    push({ kind: 'tool_call', text: input, ts, toolName, toolCallId, toolKind, filePath: edit ? input : undefined, fileOp: edit ? 'edit' : undefined });
+    if (output === undefined) {
+      run.openCallId = toolCallId;
+      summary.currentTool = toolName;
+      return;
+    }
+    const durationMs = toolKind === 'run' ? 8_400 : 350;
+    push({ kind: 'tool_result', text: output, ts: ts + durationMs, toolName, toolCallId, toolKind, durationMs });
+    if (edit) {
+      push({ kind: 'file_change', text: `Edited ${input}`, ts: ts + durationMs, filePath: input, fileOp: 'edit' });
+      run.changes.push({ ts: ts + durationMs, filePath: input, op: 'edit', toolCallId, linesAdded: edit.added, linesRemoved: edit.removed, diff: edit.diff });
+    }
+  };
+  const shot = 'npx playwright screenshot http://localhost:3000/login login.png';
+
+  push({ kind: 'user', text: title, ts: at(0) });
+  push({ kind: 'reasoning', text: 'Centring a button. This is a solved problem: flexbox on the parent, align-items and justify-content. Two minutes, tops.', ts: at(1) });
+  tool(2, 'Read', 'read', 'src/styles/login.css', 'Read 48 lines from src/styles/login.css');
+  push({ kind: 'assistant', text: "Easy one. I'll make the login card a flex container and center its contents.", ts: at(4) });
+  tool(5, 'Edit', 'edit', 'src/styles/login.css', 'Applied 1 change to src/styles/login.css (+3 -1)', {
+    diff: ['@@ -12,4 +12,6 @@', ' .login {', '-  margin: 0 auto;', '+  display: flex;', '+  justify-content: center;', '+  align-items: center;', '   padding: 2rem;', ' }'].join('\n'),
+    added: 3,
+    removed: 1,
+  });
+  tool(9, 'Bash', 'run', shot, 'Saved login.png. Button: centered horizontally. Vertically: hugging the top of the page.');
+  push({ kind: 'reasoning', text: 'align-items has nothing to center in: the parent is only as tall as the button. It needs a height.', ts: at(20) });
+  tool(22, 'Edit', 'edit', 'src/styles/login.css', 'Applied 1 change to src/styles/login.css (+1 -0)', {
+    diff: ['@@ -14,4 +14,5 @@', '   justify-content: center;', '   align-items: center;', '+  min-height: 100vh;', '   padding: 2rem;', ' }'].join('\n'),
+    added: 1,
+    removed: 0,
+  });
+  tool(31, 'Bash', 'run', shot, 'Saved login.png. Button: centered. Footer: also centered, now in the middle of the screen, on top of the button.');
+  push({ kind: 'reasoning', text: 'Considering CSS grid. Considering place-items: center. Considering a quiet career in pottery.', ts: at(48) });
+  tool(62, 'Edit', 'edit', 'src/styles/layout.css', 'Applied 1 change to src/styles/layout.css (+4 -2)', {
+    diff: ['@@ -3,4 +3,6 @@', ' body {', '-  display: block;', '-  height: auto;', '+  display: grid;', '+  place-items: center;', '+  min-height: 100vh;', '+  margin: 0;', ' }'].join('\n'),
+    added: 4,
+    removed: 2,
+  });
+  tool(75, 'Bash', 'run', shot, 'Saved login.png. Button: 3 px left of center. The logo has moved to Belgium.');
+  tool(96, 'Grep', 'search', 'position: absolute', '23 matches in 9 files');
+  tool(121, 'Read', 'read', 'src/styles/legacy/wrapper.css', 'Read 212 lines from src/styles/legacy/wrapper.css');
+  push({
+    kind: 'reasoning',
+    text: 'Found it. A .wrapper rule from 2019 places everything with position: absolute; top: 47%; left: 49.5%, under a comment that says "do not touch, works on my laptop". Every fix so far has been fighting it.',
+    ts: at(133),
+  });
+  push({ kind: 'assistant', text: 'Found the real problem: `.wrapper` in legacy/wrapper.css has `top: 47%; left: 49.5%` and a comment saying "do not touch, works on my laptop". I am going to touch it.', ts: at(150) });
+  tool(158, 'Edit', 'edit', 'src/styles/legacy/wrapper.css', 'Applied 1 change to src/styles/legacy/wrapper.css (+0 -5)', {
+    diff: ['@@ -88,7 +88,2 @@', ' .wrapper {', '-  /* do not touch, works on my laptop */', '-  position: absolute;', '-  top: 47%;', '-  left: 49.5%;', '-  transform: translate(-47%, -49.5%);', '   width: 100%;', ' }'].join('\n'),
+    added: 0,
+    removed: 5,
+  });
+  tool(165, 'Edit', 'edit', 'src/pages/Login.tsx', 'Applied 1 change to src/pages/Login.tsx (+1 -1)', {
+    diff: [
+      '@@ -21,7 +21,7 @@ export function Login() {',
+      '   return (',
+      '     <main className="login">',
+      "-      <button className=\"btn btn--primary\" style={{ marginTop: '37vh' }}>Log in</button>",
+      '+      <button className="btn btn--primary">Log in</button>',
+      '     </main>',
+      '   );',
+      ' }',
+    ].join('\n'),
+    added: 1,
+    removed: 1,
+  });
+  push({ kind: 'assistant', text: 'Fingers crossed. Running the visual tests on every screen size, including the 2013 iPad the client still uses.', ts: at(171) });
+  tool(190, 'Bash', 'run', 'npx playwright test visual/login.spec.ts --project=all-the-screens');
+  refreshSummary(run);
+  return run;
 }
 
 export function makeRun(plan: RunPlan, rng: Rng, now: number, existing: DemoRun[]): DemoRun {

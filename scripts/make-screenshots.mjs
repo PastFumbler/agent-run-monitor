@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Makes the README screenshots in docs/images/*.png from the browser demo (the fixture backend:
-// synthetic runs only, never anything from your disk).
+// synthetic runs only, never anything from your disk). At 1440 x 900 they also meet the Microsoft
+// Store's 1366 x 768 minimum. Most run screens show the demo's hand-written run (an easter egg,
+// see centerTheDiv in src/renderer/src/backend/demoData.ts).
 //
 //   node scripts/make-screenshots.mjs              all shots
 //   node scripts/make-screenshots.mjs palette ...  only the named shots
@@ -50,17 +52,128 @@ const RELOAD_AT_MS = 30_000;
 // ------------------------------------------------------------------------------------------ shots
 
 const SHOTS = {
-  /** Main run view, light theme (Paper), on the live Claude Code run. */
+  /** Home: the dashboard, a section per status with the 3 most recent runs each. */
+  async dashboard(browser) {
+    const page = await openDemo(browser, { theme: 'paper' });
+    await page.getByTestId('dashboard').waitFor();
+    await blurActive(page);
+    await settle(page, 700);
+    return page;
+  },
+
+  /** Main run view, light theme (Paper), on the demo's hand-written running run (demoData centerTheDiv). */
   async 'run-view-paper'(browser) {
     const page = await openDemo(browser, { theme: 'paper' });
-    await openRunByTitle(page, 'todo-cli', 'running');
+    await openEgg(page);
     return page;
   },
 
   /** The same run in a dark theme (Harbor). */
   async 'run-view-harbor'(browser) {
     const page = await openDemo(browser, { theme: 'harbor' }, { colorScheme: 'dark' });
+    await openEgg(page);
+    return page;
+  },
+
+  /** Overview: the summary built on this computer, counts and tokens. */
+  async overview(browser) {
+    const page = await openDemo(browser, { theme: 'paper' });
+    await openEgg(page, 'Overview');
+    await page.getByTestId('overview-summary').waitFor();
+    await settle(page, 600);
+    return page;
+  },
+
+  /** Code changed: every edit with a total; the two edits that finally fixed it are expanded. */
+  async 'code-changed'(browser) {
+    const page = await openDemo(browser, { theme: 'paper' });
+    await openEgg(page, 'Code changed');
+    const items = page.getByTestId('view-changes').getByRole('list', { name: 'Code changes, oldest first' }).getByRole('listitem');
+    for (const i of [3, 4]) await items.nth(i).getByRole('button').click();
+    await blurActive(page);
+    await settle(page, 500);
+    return page;
+  },
+
+  /** Reasoning: the run's readable thinking, oldest first. */
+  async reasoning(browser) {
+    const page = await openDemo(browser, { theme: 'paper' });
+    await openEgg(page, 'Reasoning');
+    await page.getByTestId('view-reasoning').waitFor();
+    await settle(page, 500);
+    return page;
+  },
+
+  /** Timeline of the busy live Claude Code run (the easter egg's edits are too far apart for a good
+   *  picture), zoomed in once. */
+  async timeline(browser) {
+    const page = await openDemo(browser, { theme: 'paper' });
     await openRunByTitle(page, 'todo-cli', 'running');
+    await page.getByRole('radiogroup', { name: 'Run view' }).getByRole('radio', { name: 'Timeline', exact: true }).click();
+    await page.getByTestId('view-timeline').waitFor();
+    await page.getByRole('button', { name: 'Zoom in' }).click();
+    // Zooming keeps the live end in view; this run's busiest stretch is its first half.
+    await page.getByTestId('timeline-scroll').evaluate((el) => (el.scrollLeft = 0));
+    await blurActive(page);
+    await settle(page, 600);
+    const shown = await page.getByTestId('timeline-scroll').evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return [...el.querySelectorAll('.timeline__bar')].filter((b) => {
+        const r = b.getBoundingClientRect();
+        return r.right > box.left && r.left < box.right;
+      }).length;
+    });
+    if (shown < 5) throw new Error(`only ${shown} timeline bars in view`);
+    return page;
+  },
+
+  /** All runs, grouped by start time, with a Shift-click selection ready to move to a folder. */
+  async 'all-runs'(browser) {
+    const page = await openDemo(browser, { theme: 'paper' });
+    await page.getByTestId('open-all-runs').click();
+    await page.getByTestId('all-runs').waitFor();
+    const today = page.locator('[data-group="today"] .allruns__row');
+    await today.nth(1).getByRole('checkbox').click();
+    await today.nth(3).locator('.allruns__main').click({ modifiers: ['Shift'] });
+    await page.getByTestId('allruns-selected').filter({ hasText: '3 selected' }).waitFor();
+    await blurActive(page);
+    await settle(page, 500);
+    return page;
+  },
+
+  /** Usage: tokens per agent and per run, split into input, output and cache. */
+  async usage(browser) {
+    const page = await openDemo(browser, { theme: 'paper' });
+    await page.getByTestId('open-usage').click();
+    await page.getByTestId('usage').waitFor();
+    await blurActive(page);
+    await settle(page, 600);
+    return page;
+  },
+
+  /** Settings > Customisation: the custom theme editor naming a pair that fails WCAG AA. */
+  async 'custom-theme'(browser) {
+    const page = await openCustomisation(browser);
+    await page.getByTestId('custom-theme-open').click();
+    const editor = page.getByTestId('custom-theme-editor');
+    await editor.waitFor();
+    await editor.getByLabel('Accent', { exact: true }).fill('#7a4fb8');
+    await editor.getByLabel('Text', { exact: true }).fill('#77726b');
+    await page.getByTestId('custom-theme-problems').waitFor();
+    await editor.evaluate((el) => el.scrollIntoView({ block: 'center' }));
+    await blurActive(page);
+    await settle(page, 600);
+    return page;
+  },
+
+  /** The Simple display: only running runs, one large line each. */
+  async 'simple-display'(browser) {
+    const page = await openCustomisation(browser);
+    await page.getByRole('radio', { name: 'Simple', exact: true }).check();
+    await page.keyboard.press('Escape');
+    await page.getByTestId('simple-board').waitFor();
+    await blurActive(page);
+    await settle(page, 700);
     return page;
   },
 
@@ -250,7 +363,30 @@ async function assertBefore(page, at) {
 
 export async function waitReady(page) {
   await page.getByTestId('run-list').getByRole('option').first().waitFor();
-  await page.getByTestId('run-title').waitFor();
+  // The app opens on the dashboard; a reloaded page may come back to a run.
+  await page.getByTestId('dashboard').or(page.getByTestId('run-title')).first().waitFor();
+}
+
+/** The demo's hand-written running run (demoData.ts centerTheDiv). */
+export const EGG = 'center the login button';
+
+/** Opens the easter-egg run, and then the named view of the run view switcher. */
+export async function openEgg(page, view) {
+  await openRunByTitle(page, EGG, 'running');
+  if (!view) return;
+  await page.getByRole('radiogroup', { name: 'Run view' }).getByRole('radio', { name: view, exact: true }).click();
+  await blurActive(page);
+  await settle(page, 400);
+}
+
+/** Settings, scrolled to the Customisation section. */
+async function openCustomisation(browser) {
+  const page = await openDemo(browser, { theme: 'paper' });
+  await page.keyboard.press('Control+,');
+  await page.getByTestId('settings-screen').waitFor();
+  await page.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Customisation' }).click();
+  await page.getByRole('heading', { level: 2, name: 'Customisation' }).waitFor();
+  return page;
 }
 
 /** Opens the first run in the list whose row mentions `text` and has `status`. */
@@ -282,6 +418,21 @@ export async function blurActive(page) {
     if (el && el !== document.body && typeof el.blur === 'function') el.blur();
   });
   await page.mouse.move(VIEWPORT.width - 2, VIEWPORT.height - 2);
+}
+
+/**
+ * The rotating "running" word (real-time timer) fades one word out before the next one mounts, so
+ * a shot can land on an empty label. Waits until every rotating word is fully drawn.
+ */
+export async function synonymsShown(page) {
+  await page.waitForFunction(
+    () =>
+      [...document.querySelectorAll('[data-testid="status-synonym"]')].every(
+        (el) => el.textContent.trim() !== '' && [...el.querySelectorAll('*')].every((n) => getComputedStyle(n).opacity === '1'),
+      ),
+    null,
+    { timeout: 15_000, polling: 50 },
+  );
 }
 
 export async function settle(page, ms = 400) {
@@ -461,7 +612,10 @@ async function main() {
       try {
         page = await SHOTS[name](browser);
         await freezeClock(page, (clockBase.get(page) ?? NOW) + SHOT_AT_MS);
-        const png = await page.screenshot({ animations: 'disabled', caret: 'hide' });
+        await synonymsShown(page);
+        // No `animations: 'disabled'`: it resets the rotating word's Motion animation to its first
+        // frame (invisible). freezeClock's settle has let every short animation finish already.
+        const png = await page.screenshot({ caret: 'hide' });
         const out = raw ? png : toPalettePng(png);
         const file = join(OUT_DIR, `${name}.png`);
         writeFileSync(file, out);

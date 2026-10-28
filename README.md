@@ -270,9 +270,13 @@ Notes:
 
 The app opens on the **dashboard**, its home screen. It has a section for every status (Running, Waiting for you, Idle, Done, Failed, Stuck, Couldn't read this run). Each section shows its 3 most recently updated runs, or a short line when it has none. **See all (n)** opens [All runs](#all-runs-and-folders) filtered to that status. The agent chips at the top filter every section; All runs still lists every agent, so with chips on the link says "every agent". Click a run to open it. To come back, use the dashboard button at the top of the sidebar, press `g` then `d`, or choose "Show the dashboard" in the command palette.
 
+![The dashboard: a section per status with the 3 most recent runs each, and agent filters at the top](docs/images/dashboard.png)
+
 ### Token usage
 
 The chart button at the top of the sidebar (or `g` then `u`, or "Show token usage" in the command palette) opens **Usage**: the tokens each agent used **Today**, **This week** (from Monday), **This month** or for **All time**, split into input, output, cache read and cache write, with a total for every agent. Below it, every run active in that range, sortable by any of those columns; click a run to open it. Tokens count on the day their message was recorded, or on the day the run was last updated when the agent doesn't record that. Anything an agent didn't record says **Not reported**, never 0, and runs that reported nothing sort last. Nothing is estimated and no costs are shown, because prices change. Only runs within "How far back to show runs" (Settings) are loaded, so All time covers that period. `Esc` goes back.
+
+![Usage: tokens per agent this week, split into input, output, cache read and cache write, and the runs below](docs/images/usage.png)
 
 ### The run list
 
@@ -306,6 +310,14 @@ Each run has six views, plus Reasoning for runs that have it. Switch with the ta
 7. **Reasoning**: the run's reasoning in full, oldest first. The tab (and key `7`) only appears for runs that stored readable reasoning; every supported agent can, but recent Claude Code versions usually store thinking without its text, so most Claude Code runs don't have it.
 
 The default view is a setting (Settings > Runs & refresh). Reasoning can't be the default, because not every run has it.
+
+![Overview: a summary of what the run is doing, built on this computer, then counts and tokens](docs/images/overview.png)
+
+![Code changed: the edits in order with a total, opening diffs one by one](docs/images/code-changed.gif)
+
+![Reasoning: the run's readable thinking, oldest first](docs/images/reasoning.png)
+
+![Timeline: zooming in with Ctrl + scroll, dragging to pan, and fitting the whole run again](docs/images/timeline.gif)
 
 Here is the same window in the dark Harbor theme:
 
@@ -360,6 +372,8 @@ Shortcuts are ignored while you type in a text box.
 
 The list button at the top of the sidebar (or `g` then `a`, or "Show all runs" in the command palette) opens **All runs**: every run on one full-width page, grouped by when it started: Today, Yesterday, This week, Earlier this month, then one group per month. Each row shows the folder the run is in. Tick runs (click a row or its box, Shift-click to select a range, or tick a group's box for the whole group), then **Move to folder** to put them in a folder, take them out (Unfiled) or create a new folder for them. Filter by status or folder at the top. **Open** shows a run; `Esc` goes back. Folders are kept in the app's own settings, never in agent files.
 
+![All runs: Shift-click a range of runs, then Move to folder; each row shows its folder](docs/images/organise.gif)
+
 ### Multiviewer
 
 The multiviewer shows several runs side by side, each updating live.
@@ -392,6 +406,10 @@ Open with `Ctrl+,` (`⌘,` on a Mac) or the gear button. Changes apply straight 
 - **Privacy**: secret masking and the update check.
 - **AI summary**: optional AI-written Overview summaries: provider (Anthropic or OpenAI), model, your API key, and the switch, which warns before anything is sent. Off by default.
 - **System**: start the app when you sign in.
+
+![The custom theme editor naming the colour pairs that fail WCAG AA contrast](docs/images/custom-theme.png)
+
+![The Simple display: only running runs, one large line each](docs/images/simple-display.png)
 
 **Reduce motion and low GPU mode are two different settings.**
 

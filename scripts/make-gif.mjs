@@ -1,15 +1,20 @@
 #!/usr/bin/env node
-// Makes docs/images/demo.gif for the README from the browser demo (the fixture backend: synthetic
+// Makes the README's GIFs in docs/images from the browser demo (the fixture backend: synthetic
 // runs only, never anything from your disk).
 //
-//   node scripts/make-gif.mjs
+//   node scripts/make-gif.mjs                  every clip
+//   node scripts/make-gif.mjs demo timeline    only the named clips
 //   ARM_GIF_FRAMES=<folder> node scripts/make-gif.mjs   also saves every frame as a PNG there (to check)
-//   ARM_SHOTS_DIR=<folder> node scripts/make-gif.mjs    write demo.gif there instead of docs/images
+//   ARM_SHOTS_DIR=<folder> node scripts/make-gif.mjs    write the GIFs there instead of docs/images
 //
-// What it shows, in about 10 seconds: a live run updating; m to add runs to the multiviewer and
-// → to step to the next run; Ctrl+K, a palette search and Enter to open a result; g then m to open
-// the multiviewer. A small caption names each key as it is pressed (drawn by this script, not part
-// of the app).
+// The clips (see CLIPS), each about 10 seconds:
+//   demo.gif           a live run updating; m to add runs to the multiviewer and → to step to the
+//                      next run; Ctrl+K, a palette search and Enter; g then m to open the multiviewer
+//   code-changed.gif   the demo's hand-written run (centerTheDiv in demoData.ts): edits with a
+//                      total, diffs opening one by one
+//   timeline.gif       zooming with + and Ctrl+scroll, dragging to pan, 0 to fit the run again
+//   organise.gif       All runs: Shift-click a range, Move to folder, the folder shows on each row
+// A small caption names each key as it is pressed (drawn by this script, not part of the app).
 //
 // How: Playwright drives the installed Google Chrome (channel 'chrome') at 1440 x 900 CSS pixels with
 // a device scale factor of 2/3, so Chrome itself renders each frame at 960 x 600 (sharper than
@@ -27,34 +32,164 @@
 // which keeps the file small. Reuses the demo server and helpers from make-screenshots.mjs.
 
 import { mkdirSync, writeFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import { chromium } from 'playwright';
 import gifenc from 'gifenc';
-import { BASE, NOW, OUT_DIR, ROOT, blurActive, decodePng, ensureServer, runClock, startClock, waitReady } from './make-screenshots.mjs';
+import { BASE, EGG, NOW, OUT_DIR, ROOT, blurActive, decodePng, ensureServer, openRunByTitle, runClock, startClock, waitReady } from './make-screenshots.mjs';
 
 const { GIFEncoder, quantize, applyPalette } = gifenc;
 
 const SCALE = 2 / 3; // 1440 x 900 CSS px -> 960 x 600 frames
 const FRAME_MS = 110; // spacing between frames when capturing, and how long each frame plays (about 9 fps)
 const HOLD_LAST_MS = 1200; // the last frame stays up a little before the clip loops
-const OUT = join(OUT_DIR, 'demo.gif');
 const MAX_BYTES = 2.5 * 1024 * 1024;
 /** Fake time (after NOW) at which recording starts. Longer than the set-up before the first frame. */
 const RECORD_AT_MS = 20_000;
 
-const frames = []; // PNG buffers
+const runView = (page, name) => page.getByRole('radiogroup', { name: 'Run view' }).getByRole('radio', { name, exact: true });
+
+/**
+ * Each clip: `setup` runs on the normal clock (open the screen to start from), `record` with the
+ * page's clock paused, moving only as frames are taken.
+ */
+const CLIPS = {
+  demo: {
+    // Start on the live Claude Code run.
+    async setup(page) {
+      await openRunByTitle(page, 'todo-cli', 'running');
+    },
+    async record(page, rec) {
+      await recordDemo(page, rec);
+    },
+  },
+
+  'code-changed': {
+    async setup(page) {
+      await openRunByTitle(page, EGG, 'running');
+      await runView(page, 'Code changed').click();
+      await page.getByTestId('view-changes').waitFor();
+    },
+    async record(page, rec) {
+      const items = page.getByTestId('view-changes').getByRole('list', { name: 'Code changes, oldest first' }).getByRole('listitem');
+      const toggle = (i) => items.nth(i).getByRole('button').click();
+      await caption(page, 'Code changed: every edit in order, with a total');
+      await rec.frames(14);
+      await caption(page, 'Click an edit to see its diff');
+      await toggle(0);
+      await rec.frames(14);
+      await toggle(0);
+      await toggle(2);
+      await rec.frames(14);
+      await toggle(2);
+      await caption(page, 'Three hours in: the real culprit');
+      await toggle(3);
+      await rec.frames(22);
+      await toggle(4);
+      await rec.frames(16);
+    },
+  },
+
+  timeline: {
+    // The busy live run: the easter egg's edits are too far apart to show zooming well.
+    async setup(page) {
+      await openRunByTitle(page, 'todo-cli', 'running');
+      await runView(page, 'Timeline').click();
+      await page.getByTestId('view-timeline').waitFor();
+    },
+    async record(page, rec) {
+      await caption(page, 'Timeline: the whole run');
+      await rec.frames(12);
+      // Zoom in where the pointer is, over the run's first cluster of shell calls (its busiest
+      // stretch; zooming around the middle of the view would land in a quiet gap).
+      const bars = page.locator('.timeline__bar');
+      const widths = await bars.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
+      const bar = await bars.nth(widths.indexOf(Math.max(...widths))).boundingBox();
+      const y = bar.y + bar.height / 2;
+      const x = bar.x + bar.width / 2;
+      await caption(page, 'Ctrl + scroll   zoom in where the pointer is');
+      await page.mouse.move(x, y);
+      await page.keyboard.down('Control');
+      for (let i = 0; i < 2; i++) {
+        await page.mouse.wheel(0, -100);
+        await rec.frames(6);
+      }
+      await page.keyboard.up('Control');
+      await rec.frames(6);
+      await caption(page, 'Drag to pan along the run');
+      await page.mouse.down();
+      for (let i = 1; i <= 10; i++) {
+        // Rightwards: back to the start of the run (the prompt and the first shell calls).
+        await page.mouse.move(x + i * 28, y);
+        await rec.frames(1);
+      }
+      await page.mouse.up();
+      await rec.frames(8);
+      await caption(page, '0   fit the whole run again');
+      await page.keyboard.press('0');
+      await rec.frames(14);
+    },
+  },
+
+  organise: {
+    async setup(page) {
+      await page.getByTestId('open-all-runs').click();
+      await page.getByTestId('all-runs').waitFor();
+    },
+    async record(page, rec) {
+      const today = page.locator('[data-group="today"] .allruns__row');
+      await caption(page, 'All runs, grouped by when they started');
+      await rec.frames(12);
+      await caption(page, 'Click a run to select it');
+      await today.nth(1).getByRole('checkbox').click();
+      await rec.frames(8);
+      await caption(page, 'Shift-click selects everything in between');
+      await page.keyboard.down('Shift');
+      await today.nth(4).locator('.allruns__main').click();
+      await page.keyboard.up('Shift');
+      await rec.frames(12);
+      await caption(page, 'Move to folder');
+      await page.getByTestId('allruns-move').click();
+      await rec.framesUntil(async () => (await page.getByRole('dialog').count()) > 0, 12, 'the folder dialog to open');
+      await rec.frames(10);
+      await page.getByRole('dialog').getByRole('button', { name: 'Move to Side projects' }).click();
+      await rec.framesUntil(async () => (await page.getByRole('dialog').count()) === 0, 12, 'the folder dialog to close');
+      await caption(page, 'Each run shows its folder');
+      await rec.frames(20);
+    },
+  },
+};
 
 async function main() {
+  const wanted = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+  const unknown = wanted.filter((w) => !CLIPS[w]);
+  if (unknown.length) {
+    console.error(`unknown clip(s): ${unknown.join(', ')}\navailable: ${Object.keys(CLIPS).join(', ')}`);
+    process.exit(1);
+  }
+  mkdirSync(OUT_DIR, { recursive: true });
   const stop = await ensureServer();
   const browser = await chromium.launch({ channel: 'chrome' });
   try {
-    const context = await browser.newContext({
-      viewport: { width: 1440, height: 900 },
-      deviceScaleFactor: SCALE,
-      locale: 'en-US',
-      timezoneId: 'UTC',
-      colorScheme: 'light',
-    });
+    for (const name of wanted.length ? wanted : Object.keys(CLIPS)) {
+      const frames = await recordClip(browser, CLIPS[name]);
+      encode(frames, join(OUT_DIR, `${name}.gif`));
+    }
+  } finally {
+    await browser.close();
+    stop();
+  }
+}
+
+/** Opens the demo, runs the clip's set-up, pauses the page's clock and records. Returns the frames. */
+async function recordClip(browser, clip) {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    deviceScaleFactor: SCALE,
+    locale: 'en-US',
+    timezoneId: 'UTC',
+    colorScheme: 'light',
+  });
+  try {
     const page = await context.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
@@ -70,14 +205,7 @@ async function main() {
     await runClock(page);
     await waitReady(page);
     await installCaption(page);
-
-    // Start on the live Claude Code run.
-    await page
-      .getByTestId('run-list')
-      .locator('[role="option"][data-status="running"]')
-      .filter({ hasText: 'todo-cli' })
-      .first()
-      .click();
+    await clip.setup(page);
     await blurActive(page);
     await page.waitForTimeout(600);
 
@@ -86,65 +214,68 @@ async function main() {
     if (fakeNow > NOW + RECORD_AT_MS) throw new Error(`set-up took longer than RECORD_AT_MS (${fakeNow - NOW} ms)`);
     await page.clock.pauseAt(NOW + RECORD_AT_MS);
     const rec = recorder(page, await context.newCDPSession(page));
-
-    // 1. A live run updating (nudge the demo so new events land on camera).
-    await caption(page, 'A live run, updating as the agent works');
-    await rec.frames(13, async (i) => {
-      if (i % 6 === 3) await page.evaluate(() => window.__armFixture?.tick());
-    });
-
-    // 2. m adds the run to the multiviewer, → steps to the next run.
-    for (const [key, text] of [
-      ['m', 'm   add this run to the multiviewer'],
-      ['ArrowRight', '→   next run'],
-      ['m', 'm   add it too'],
-      ['ArrowRight', '→   next run'],
-      ['m', 'm   and this one'],
-    ]) {
-      await caption(page, text);
-      await page.keyboard.press(key);
-      await rec.frames(5);
-    }
-
-    // 3. Ctrl+K: search runs by agent, status and time.
-    await caption(page, 'Ctrl+K   search runs and commands');
-    await page.keyboard.press('Control+K');
-    const input = page.getByRole('combobox', { name: 'Search runs and commands' });
-    await input.waitFor();
-    await rec.frames(3);
-    for (const ch of 'codex failed') {
-      await input.press(ch === ' ' ? 'Space' : ch);
-      await rec.frames(1);
-    }
-    await rec.frames(5);
-    await caption(page, 'Enter   open the run');
-    await page.keyboard.press('Enter');
-    // The palette's closing animation needs the clock to move: take frames until it is gone.
-    await rec.framesUntil(async () => (await page.getByRole('dialog').count()) === 0, 12, 'the palette to close');
-    await rec.frames(3);
-    await caption(page, 'm   add it to the multiviewer');
-    await page.keyboard.press('m');
-    await rec.frames(4);
-
-    // 4. g then m opens the multiviewer with the chosen runs, still live.
-    await caption(page, 'g then m   open the multiviewer');
-    await page.keyboard.press('g');
-    await page.keyboard.press('m');
-    await rec.framesUntil(async () => (await page.getByTestId('multiview').count()) > 0, 12, 'the multiviewer to open');
-    await rec.frames(15, async (i) => {
-      if (i % 5 === 2) await page.evaluate(() => window.__armFixture?.tick());
-    });
-
+    await clip.record(page, rec);
     if (errors.length) console.error(`page errors: ${errors.join(' | ')}`);
+    return rec.taken;
   } finally {
-    await browser.close();
-    stop();
+    await context.close();
   }
-  encode();
+}
+
+/** demo.gif: live updates, stepping between runs, the palette and the multiviewer. */
+async function recordDemo(page, rec) {
+  // 1. A live run updating (nudge the demo so new events land on camera).
+  await caption(page, 'A live run, updating as the agent works');
+  await rec.frames(13, async (i) => {
+    if (i % 6 === 3) await page.evaluate(() => window.__armFixture?.tick());
+  });
+
+  // 2. m adds the run to the multiviewer, → steps to the next run.
+  for (const [key, text] of [
+    ['m', 'm   add this run to the multiviewer'],
+    ['ArrowRight', '→   next run'],
+    ['m', 'm   add it too'],
+    ['ArrowRight', '→   next run'],
+    ['m', 'm   and this one'],
+  ]) {
+    await caption(page, text);
+    await page.keyboard.press(key);
+    await rec.frames(5);
+  }
+
+  // 3. Ctrl+K: search runs by agent, status and time.
+  await caption(page, 'Ctrl+K   search runs and commands');
+  await page.keyboard.press('Control+K');
+  const input = page.getByRole('combobox', { name: 'Search runs and commands' });
+  await input.waitFor();
+  await rec.frames(3);
+  for (const ch of 'codex failed') {
+    await input.press(ch === ' ' ? 'Space' : ch);
+    await rec.frames(1);
+  }
+  await rec.frames(5);
+  await caption(page, 'Enter   open the run');
+  await page.keyboard.press('Enter');
+  // The palette's closing animation needs the clock to move: take frames until it is gone.
+  await rec.framesUntil(async () => (await page.getByRole('dialog').count()) === 0, 12, 'the palette to close');
+  await rec.frames(3);
+  await caption(page, 'm   add it to the multiviewer');
+  await page.keyboard.press('m');
+  await rec.frames(4);
+
+  // 4. g then m opens the multiviewer with the chosen runs, still live.
+  await caption(page, 'g then m   open the multiviewer');
+  await page.keyboard.press('g');
+  await page.keyboard.press('m');
+  await rec.framesUntil(async () => (await page.getByTestId('multiview').count()) > 0, 12, 'the multiviewer to open');
+  await rec.frames(15, async (i) => {
+    if (i % 5 === 2) await page.evaluate(() => window.__armFixture?.tick());
+  });
 }
 
 /** Takes frames no closer than FRAME_MS apart, moving the page's paused clock FRAME_MS per frame. */
 function recorder(page, cdp) {
+  const frames = []; // PNG buffers
   let last = 0;
   let slowest = 0;
   // Page.captureScreenshot directly: about twice as fast as page.screenshot(), still lossless PNG.
@@ -175,6 +306,9 @@ function recorder(page, cdp) {
     },
     get slowestGapMs() {
       return slowest;
+    },
+    get taken() {
+      return frames;
     },
   };
 }
@@ -211,12 +345,13 @@ async function caption(page, text) {
   }, text);
 }
 
-function encode() {
+function encode(frames, out) {
   if (frames.length < 2) throw new Error('no frames recorded');
   const dump = process.env.ARM_GIF_FRAMES;
   if (dump) {
     mkdirSync(dump, { recursive: true });
-    frames.forEach((png, i) => writeFileSync(join(dump, `frame-${String(i).padStart(3, '0')}.png`), png));
+    const clip = basename(out, '.gif');
+    frames.forEach((png, i) => writeFileSync(join(dump, `${clip}-${String(i).padStart(3, '0')}.png`), png));
   }
   const decoded = frames.map((png) => decodePng(png));
   const { width, height } = decoded[0];
@@ -256,12 +391,12 @@ function encode() {
     prev = index;
   });
   gif.finish();
-  writeFileSync(OUT, gif.bytes());
+  writeFileSync(out, gif.bytes());
 
-  const bytes = statSync(OUT).size;
+  const bytes = statSync(out).size;
   const seconds = ((frames.length - 1) * FRAME_MS + HOLD_LAST_MS) / 1000;
   const summary = {
-    file: relative(ROOT, OUT).split('\\').join('/'),
+    file: relative(ROOT, out).split('\\').join('/'),
     width,
     height,
     frames: frames.length,
@@ -273,7 +408,7 @@ function encode() {
   };
   console.log(JSON.stringify(summary));
   if (bytes > MAX_BYTES) {
-    console.error(`demo.gif is ${summary.megabytes} MB, over the 2.5 MB target`);
+    console.error(`${summary.file} is ${summary.megabytes} MB, over the 2.5 MB target`);
     process.exitCode = 1;
   }
 }
