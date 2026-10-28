@@ -289,16 +289,17 @@ The left side lists your runs, newest first.
 
 ### Run views
 
-Each run has six views. Switch with the tabs or the keys `1` to `6`:
+Each run has six views, plus Reasoning for runs that have it. Switch with the tabs or the keys `1` to `7`:
 
-1. **Activity**: messages, reasoning steps, tool calls and their results, as they happen.
+1. **Activity**: messages, reasoning steps, tool calls and their results, as they happen. Thinking the agent stored without its text (common for recent Claude Code versions) shows as one line, such as "Thinking (3.2 s, text not stored)".
 2. **Overview**: status, counts, project, branch, model, start time, duration, token use (input, output and prompt-cache tokens as the agent records them, or "Not reported" when the run has none; never estimated), and the source file with a "Reveal in folder" button.
 3. **Files**: the files the run created, edited or deleted.
 4. **Tools**: every tool call, with its result and how long it took.
 5. **Timeline**: the run over time.
 6. **Code changed**: every edit the run applied, oldest first: time, file and lines added and removed, with a total at the top. Click an edit to see its diff (masked like the rest of the run). Agents that don't record an edit's content show the file with "Lines unknown" and no diff, never 0.
+7. **Reasoning**: the run's reasoning in full, oldest first. The tab (and key `7`) only appears for runs that stored readable reasoning; every supported agent can, but recent Claude Code versions usually store thinking without its text, so most Claude Code runs don't have it.
 
-The default view is a setting (Settings > Runs & refresh).
+The default view is a setting (Settings > Runs & refresh). Reasoning can't be the default, because not every run has it.
 
 Here is the same window in the dark Harbor theme:
 
@@ -329,6 +330,7 @@ Press `?` at any time for the list of shortcuts (it is also linked from the stat
 | `4` | Tools view |
 | `5` | Timeline view |
 | `6` | Code changed view |
+| `7` | Reasoning view (runs with readable reasoning) |
 | `m` | Add or remove run from the multiviewer |
 | `g` then `m` | Open the multiviewer |
 | `g` then `a` | All runs (organise into folders) |

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowLeft02Icon, LinkSquare02Icon } from '@hugeicons/core-free-icons';
 import type { UpdateInfo } from '@shared/ipc';
 import { RELEASES_URL } from '@shared/project';
-import { HISTORY_CHOICES, REFRESH_CHOICES, RUN_VIEWS, type RunView, type Settings, type TriState } from '@shared/settings';
+import { DEFAULT_VIEWS, HISTORY_CHOICES, REFRESH_CHOICES, type RunView, type Settings, type TriState } from '@shared/settings';
 import { getBackend } from '../../backend';
 import { Icon } from '../../components/Icon';
 import { useMotionPolicy } from '../../motion/context';
@@ -41,6 +41,7 @@ const VIEW_LABELS: Record<RunView, string> = {
   tools: 'Tools',
   timeline: 'Timeline',
   changes: 'Code changed',
+  reasoning: 'Reasoning',
 };
 
 const set = (patch: Partial<Settings>) => void updateSettings(patch);
@@ -343,7 +344,7 @@ export function SettingsScreen() {
                 testId="default-view"
                 description="Which tab a run opens on."
                 value={s.defaultView}
-                choices={RUN_VIEWS.map((v) => ({ value: v, label: VIEW_LABELS[v] }))}
+                choices={DEFAULT_VIEWS.map((v) => ({ value: v, label: VIEW_LABELS[v] }))}
                 onChange={(v) => {
                   setView(v);
                   set({ defaultView: v });

@@ -22,7 +22,7 @@ import { MotionPolicyContext, useMotionPolicy } from '../../motion/context';
 import { useStore } from '../../store/store';
 import StatusMark from '../../vendor/react-bits/StatusMark/StatusMark';
 import { plainStatus } from '../runview/StatusLabel';
-import { VIEWS, VIEW_BY_ID } from '../runview/views';
+import { VIEWS, VIEW_BY_ID, shownView } from '../runview/views';
 import { pauseReason, tileRate, useThrottledStore, useTilePolicy } from './throttle';
 import { TileViewSwitcher } from './TileViewSwitcher';
 
@@ -86,7 +86,7 @@ export const Tile = memo(function Tile({ id, position, total, inView, observe, o
   const titleId = useId();
   const focused = useStore((s) => s.focusedTile === id);
   const maximizedId = useStore((s) => s.maximizedTile);
-  const view = useStore((s) => s.tileViews[id] ?? s.settings.defaultView);
+  const chosenView = useStore((s) => s.tileViews[id] ?? s.settings.defaultView);
   const runsLoaded = useStore((s) => s.runsLoaded);
   const exists = useStore((s) => !!s.runs[id]);
   const setTileView = useStore((s) => s.setTileView);
@@ -105,6 +105,8 @@ export const Tile = memo(function Tile({ id, position, total, inView, observe, o
   const run = useThrottledStore((s) => s.runs[id], rate.intervalMs, paused, [id], rate.slow) as RunSummary | undefined;
   const { detail, failed } = useTileDetail(id, exists, rate.intervalMs, paused, rate.slow);
   const merged = useMemo(() => (detail && run ? { ...detail, summary: run } : null), [detail, run]);
+  // A run without the tile's chosen view (Reasoning) shows Activity.
+  const view = shownView(chosenView, run);
 
   const sortable = useSortable({
     id,
@@ -219,7 +221,7 @@ export const Tile = memo(function Tile({ id, position, total, inView, observe, o
                 ) : null}
                 {reason === 'offscreen' ? <span className="mv-badge">paused</span> : null}
                 <span className="mv-tile__views">
-                  <TileViewSwitcher value={view} onChange={(v) => setTileView(id, v)} label={`View for ${title}`} />
+                  <TileViewSwitcher value={view} onChange={(v) => setTileView(id, v)} label={`View for ${title}`} hasReasoning={!!run.hasReasoning} />
                 </span>
               </div>
             ) : null}

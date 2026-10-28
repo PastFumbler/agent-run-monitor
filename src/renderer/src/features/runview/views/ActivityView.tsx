@@ -46,7 +46,7 @@ const LONG_LINES = 4;
 const isLong = (t: string) => t.length > LONG_CHARS || t.split('\n').length > LONG_LINES;
 const BOTTOM_SLACK = 48;
 
-function CollapsibleText({ text, expanded, onToggle, mono }: { text: string; expanded: boolean; onToggle(): void; mono?: boolean }) {
+export function CollapsibleText({ text, expanded, onToggle, mono }: { text: string; expanded: boolean; onToggle(): void; mono?: boolean }) {
   const long = isLong(text);
   return (
     <>
@@ -83,11 +83,12 @@ const EventRow = memo(function EventRow({
   let kindLabel = KIND_LABELS[e.kind];
   switch (e.kind) {
     case 'reasoning':
+      // A placeholder (thinking stored without its text) is a plain line, not an expandable trace.
       body = (
         <ThoughtLine
           label="Thinking…"
-          doneLabel="Reasoning"
-          steps={reasoningSteps(e.text)}
+          doneLabel={e.placeholder ? e.text : 'Reasoning'}
+          steps={e.placeholder ? undefined : reasoningSteps(e.text)}
           working={item.working}
           defaultOpen={item.working || expanded}
           toggleLabel={`Reasoning step ${e.seq + 1}`}

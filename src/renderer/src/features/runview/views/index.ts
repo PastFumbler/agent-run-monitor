@@ -1,5 +1,5 @@
 // The run views. Each is a standalone component taking (detail, compact?) so the multiviewer
-// tiles can reuse them unchanged.
+// tiles can reuse them unchanged. Reasoning is only offered for runs that have it (available.ts).
 
 import type { ComponentType } from 'react';
 import type { RunView } from '@shared/settings';
@@ -7,6 +7,7 @@ import { ActivityView, type RunViewProps } from './ActivityView';
 import { CodeChangesView } from './CodeChangesView';
 import { FilesView } from './FilesView';
 import { OverviewView } from './OverviewView';
+import { ReasoningView } from './ReasoningView';
 import { TimelineView } from './TimelineView';
 import { ToolsView } from './ToolsView';
 
@@ -24,9 +25,11 @@ export const VIEWS: ViewDef[] = [
   { id: 'tools', label: 'Tools', key: '4', Component: ToolsView },
   { id: 'timeline', label: 'Timeline', key: '5', Component: TimelineView },
   { id: 'changes', label: 'Code changed', key: '6', Component: CodeChangesView },
+  { id: 'reasoning', label: 'Reasoning', key: '7', Component: ReasoningView },
 ];
 
 export const VIEW_BY_ID: Record<RunView, ViewDef> = Object.fromEntries(VIEWS.map((v) => [v.id, v])) as Record<RunView, ViewDef>;
 
 export type { RunViewProps };
-export { ActivityView, CodeChangesView, FilesView, OverviewView, TimelineView, ToolsView };
+export { ActivityView, CodeChangesView, FilesView, OverviewView, ReasoningView, TimelineView, ToolsView };
+export { shownView, viewAvailable, viewForKey } from './available';

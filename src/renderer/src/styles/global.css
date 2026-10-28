@@ -1169,6 +1169,27 @@ button.change__head:hover {
   font-size: 0.8rem;
 }
 
+/* ---------- Reasoning ---------- */
+
+.reasoning {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px var(--pad) var(--pad);
+}
+
+.reasoning__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+
+.reasoning__item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
 /* ---------- Timeline ---------- */
 
 .timeline {

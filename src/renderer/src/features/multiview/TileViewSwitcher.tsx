@@ -1,11 +1,12 @@
-// A compact segmented control for a tile's view (Activity, Overview, Files, Tools, Timeline, Code changed).
+// A compact segmented control for a tile's view (Activity, Overview, Files, Tools, Timeline, Code changed,
+// and Reasoning for runs that have readable reasoning).
 // RubberSegment is too wide for a quarter-width tile, so tiles use a plain radio group: one tab stop,
 // arrow keys / Home / End move and select, the checked option is bold and underlined (not colour only).
 // Narrow tiles show short labels; the accessible name is always the full view name.
 
-import { useRef, type KeyboardEvent } from 'react';
+import { useMemo, useRef, type KeyboardEvent } from 'react';
 import type { RunView } from '@shared/settings';
-import { VIEWS } from '../runview/views';
+import { VIEWS as ALL_VIEWS, viewAvailable } from '../runview/views';
 
 const SHORT: Record<RunView, string> = {
   activity: 'Act',
@@ -14,9 +15,21 @@ const SHORT: Record<RunView, string> = {
   tools: 'Tools',
   timeline: 'Time',
   changes: 'Code',
+  reasoning: 'Think',
 };
 
-export function TileViewSwitcher({ value, onChange, label }: { value: RunView; onChange(v: RunView): void; label: string }) {
+export function TileViewSwitcher({
+  value,
+  onChange,
+  label,
+  hasReasoning = false,
+}: {
+  value: RunView;
+  onChange(v: RunView): void;
+  label: string;
+  hasReasoning?: boolean;
+}) {
+  const VIEWS = useMemo(() => ALL_VIEWS.filter((v) => viewAvailable(v.id, { hasReasoning })), [hasReasoning]);
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const index = Math.max(
     0,

@@ -23,7 +23,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, rectSortingStrategy, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
 import { Add01Icon, ArrowLeft01Icon, ArrowRight01Icon, FloppyDiskIcon, Layout01Icon } from '@hugeicons/core-free-icons';
-import { RUN_VIEWS } from '@shared/settings';
+import { viewForKey } from '../runview/views/available';
 import { getBackend } from '../../backend';
 import { Icon } from '../../components/Icon';
 import { useMotionPolicy } from '../../motion/context';
@@ -229,10 +229,11 @@ export function MultiView() {
         goPage(st.multiPage + (key === 'PageDown' ? 1 : -1));
         return;
       }
-      if (/^[1-6]$/.test(key) && st.focusedTile && ids.includes(st.focusedTile)) {
+      if (/^[1-7]$/.test(key) && st.focusedTile && ids.includes(st.focusedTile)) {
         e.preventDefault();
         e.stopPropagation();
-        st.setTileView(st.focusedTile, RUN_VIEWS[Number(key) - 1]);
+        const view = viewForKey(key, st.runs[st.focusedTile]);
+        if (view) st.setTileView(st.focusedTile, view);
       }
     };
     window.addEventListener('keydown', onKey, true);

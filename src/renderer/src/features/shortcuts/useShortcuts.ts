@@ -2,7 +2,7 @@
 // except Esc and Ctrl/Cmd+K. While an overlay is open only Esc (and the overlay's own keys) apply.
 
 import { useEffect, useRef } from 'react';
-import { RUN_VIEWS } from '@shared/settings';
+import { viewForKey } from '../runview/views/available';
 import { goBack, openRunWithDefaultView, showAllRuns, showDashboard, togglePin } from '../../store/actions';
 import { useStore } from '../../store/store';
 
@@ -148,8 +148,10 @@ export function useShortcuts(getNav: () => string[]): void {
           st.focusSearch();
           return;
         default:
-          if (/^[1-6]$/.test(key) && st.route === 'run') {
-            st.setView(RUN_VIEWS[Number(key) - 1]);
+          if (/^[1-7]$/.test(key) && st.route === 'run') {
+            // 7 (Reasoning) only means something for a run that has readable reasoning.
+            const view = viewForKey(key, st.currentId ? st.runs[st.currentId] : undefined);
+            if (view) st.setView(view);
             e.preventDefault();
           }
       }

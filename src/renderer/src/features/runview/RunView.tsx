@@ -15,7 +15,7 @@ import { shortcutText } from '../shortcuts/shortcuts';
 import { FakeProgress } from './FakeProgress';
 import { StatusLabel } from './StatusLabel';
 import { useRunDetail, useWatchRuns } from './useRunDetail';
-import { VIEWS, VIEW_BY_ID } from './views';
+import { VIEWS, VIEW_BY_ID, shownView, viewAvailable } from './views';
 
 export function RunHeader({ run, nav }: { run: RunSummary; nav: string[] }) {
   const settings = useStore((s) => s.settings);
@@ -111,22 +111,26 @@ export function RunHeader({ run, nav }: { run: RunSummary; nav: string[] }) {
         </div>
       </div>
       <div className="runview__bar">
-        <ViewSwitcher />
+        <ViewSwitcher run={run} />
         <FakeProgress status={run.status} enabled={settings.fakeProgress} />
       </div>
     </header>
   );
 }
 
-export function ViewSwitcher({ value, onChange, label = 'Run view' }: { value?: RunViewId; onChange?(v: RunViewId): void; label?: string }) {
+export function ViewSwitcher({ run, label = 'Run view' }: { run: RunSummary; label?: string }) {
   const storeView = useStore((s) => s.view);
   const setView = useStore((s) => s.setView);
-  const items = useMemo(() => VIEWS.map((v) => ({ value: v.id, label: v.label, title: `${v.label} (${v.key})` })), []);
+  const hasReasoning = !!run.hasReasoning;
+  const items = useMemo(
+    () => VIEWS.filter((v) => viewAvailable(v.id, { hasReasoning })).map((v) => ({ value: v.id, label: v.label, title: `${v.label} (${v.key})` })),
+    [hasReasoning],
+  );
   return (
     <RubberSegment
       items={items}
-      value={value ?? storeView}
-      onChange={(v) => (onChange ?? setView)(v as RunViewId)}
+      value={shownView(storeView, run)}
+      onChange={(v) => setView(v as RunViewId)}
       size="sm"
       aria-label={label}
       equalSlots={false}
@@ -148,14 +152,16 @@ export function RunView({ runId, nav }: { runId: string; nav: string[] }) {
     );
   }
 
-  const View = VIEW_BY_ID[view]?.Component ?? VIEWS[0].Component;
+  // A run without the chosen view (Reasoning) shows Activity; the choice is kept for the next run.
+  const shown = shownView(view, run);
+  const View = VIEW_BY_ID[shown]?.Component ?? VIEWS[0].Component;
   // The header always uses the live summary; views use the detail (with the summary patched in).
   const merged = detail ? { ...detail, summary: run } : null;
 
   return (
     <div className="runview" data-run-id={runId}>
       <RunHeader run={run} nav={nav} />
-      <section className="runview__body" aria-label={`${VIEW_BY_ID[view]?.label ?? 'Activity'} view`}>
+      <section className="runview__body" aria-label={`${VIEW_BY_ID[shown]?.label ?? 'Activity'} view`}>
         {merged ? (
           <View detail={merged} />
         ) : missing ? (

@@ -8,8 +8,11 @@ import { AGENT_IDS, type AgentId } from './schema';
 export const THEME_IDS = ['paper', 'sage', 'dawn', 'dusk', 'moss', 'harbor'] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
-export const RUN_VIEWS = ['activity', 'overview', 'files', 'tools', 'timeline', 'changes'] as const;
+/** Every run view, in tab order; number key n opens RUN_VIEWS[n-1]. */
+export const RUN_VIEWS = ['activity', 'overview', 'files', 'tools', 'timeline', 'changes', 'reasoning'] as const;
 export type RunView = (typeof RUN_VIEWS)[number];
+/** Views every run has, so they can be the default. Reasoning only exists for runs with readable reasoning. */
+export const DEFAULT_VIEWS = RUN_VIEWS.filter((v) => v !== 'reasoning');
 
 export type TriState = 'auto' | 'on' | 'off';
 export type TimeFormat = '24h' | '12h' | 'relative';
@@ -135,7 +138,7 @@ export function normalizeSettings(raw: unknown): Settings {
     sources,
     projectRoots: strings(raw.projectRoots, 50),
     refreshMs: int(raw.refreshMs, d.refreshMs, 500, 60000),
-    defaultView: pick(raw.defaultView, RUN_VIEWS, d.defaultView),
+    defaultView: pick(raw.defaultView, DEFAULT_VIEWS, d.defaultView),
     moveUpdatedToTop: bool(raw.moveUpdatedToTop, d.moveUpdatedToTop),
     gridTileLimit: int(raw.gridTileLimit, d.gridTileLimit, 1, 12),
     notifyOnFinish: bool(raw.notifyOnFinish, d.notifyOnFinish),
